@@ -10,3 +10,4 @@ class SearchBodyRequest(BaseModel):
 
 class SearchSettings(BaseModel):
     vector_search: str = Field(default="faiss")
+    k_query: int = Field(default=5)

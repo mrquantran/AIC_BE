@@ -155,8 +155,6 @@ class CLIPEmbedding:
         else:
             index_dimension = self.usearch_strategy.usearch_index.ndim
 
-        print(f"Query embedding shape: {query_embedding.shape}")
-        print(f"Index dimension: {index_dimension}")
         # Resize and normalize the query embedding if necessary
         if query_embedding.shape[1] != index_dimension:
             print(

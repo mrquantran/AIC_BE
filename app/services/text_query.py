@@ -21,7 +21,7 @@ class TextQueryService(BaseController[Text]):
 
         # Perform text queries concurrently
         text_queries = [
-            embedder.text_query(value, k=5, use_faiss=use_faiss)
+            embedder.text_query(value, k=settings.k_query, use_faiss=use_faiss)
             for value in text_queries
         ]
         results = await asyncio.gather(*text_queries)

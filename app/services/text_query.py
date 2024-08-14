@@ -1,18 +1,18 @@
-from typing import List, Tuple
+from typing import List
 from app.common.controller import BaseController
 from app.common.exceptions import NotFoundException
 from app.models import Text
-from app.repositories import QueryRepository
+from app.repositories import TextQueryRepository
 from app.schemas.requests import SearchBodyRequest
 from app.schemas.requests.query import SearchSettings
 from app.schemas.responses.keyframes import KeyframeWithConfidence
-from app.services.clip_embedding import CLIPEmbedding
-import os
 from app.config.embedding import embedder
+from app.common.enum import QueryType
 import asyncio
 
-class QueryService(BaseController[Text]):
-    def __init__(self, query_repository: QueryRepository):
+class TextQueryService(BaseController[Text]):
+
+    def __init__(self, query_repository: TextQueryRepository):
         super().__init__(model=Text, repository=query_repository)
         self.query_repository = query_repository
 
@@ -28,12 +28,12 @@ class QueryService(BaseController[Text]):
         self, body: List[SearchBodyRequest], settings: SearchSettings
     ) -> List[KeyframeWithConfidence]:
         use_faiss = settings.vector_search == 'faiss'
-        print(use_faiss)
 
         # Perform text queries concurrently
         text_queries = [
             embedder.text_query(req.value, k=5, use_faiss=use_faiss)
-            for req in body if req.model == "Text"
+            for req in body
+            if req.model == QueryType.Text
         ]
         results = await asyncio.gather(*text_queries)
 

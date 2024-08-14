@@ -1,20 +1,21 @@
-from typing import List, Tuple
+from typing import List
 from app.common.factory import Factory
 from app.schemas.responses.keyframes import KeyframeWithConfidence
 from fastapi import APIRouter, Body, Depends, Query
 from app.models import Text
 from app.schemas.extras import Response
 from app.schemas.requests import SearchBodyRequest, SearchSettings
-from app.services import QueryService
+from app.services import TextQueryService
 from app.controllers import QueryController
 
 query_router = APIRouter()
+factory = Factory()
+
 
 def get_query_controller(
-    query_service: QueryService = Depends(Factory().get_query_service),
+    query_service: TextQueryService = Depends(Factory().get_text_query_service),
 ):
     return QueryController(query_service)
-
 
 @query_router.post(
     "/search",
@@ -26,10 +27,10 @@ def get_query_controller(
     description="Predict to get top k similar keyframes",
 )
 async def search(
-    query_service: QueryService = Depends(Factory().get_query_service),
+    query_service: TextQueryService = Depends(Factory().get_text_query_service),
     request_body: List[SearchBodyRequest] = Body(),
-    vector_search: str = Query(example='faiss', description="Description for param1"),
-):  
+    vector_search: str = Query(example="faiss", description="Description for param1"),
+):
     settings = SearchSettings(vector_search=vector_search)
 
     query_controller = get_query_controller(query_service)
@@ -47,7 +48,7 @@ async def search(
     description="Query one record by index",
 )
 async def query_one_by_index(
-    query_service: QueryService = Depends(Factory().get_query_service),
+    query_service: TextQueryService = Depends(Factory().get_text_query_service),
     index: int = Query(example=1, description="Index of the keyframe"),
 ) -> Response[Text]:
     query_controller = get_query_controller(query_service)

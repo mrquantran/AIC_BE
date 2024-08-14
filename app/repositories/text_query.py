@@ -3,7 +3,7 @@ from app.common.repository.base import BaseRepository
 from app.models.text import Text
 
 
-class QueryRepository(BaseRepository[Text]):
+class TextQueryRepository(BaseRepository[Text]):
     """
     Query repository provides all the database operations for the Query model.
     """

@@ -1,11 +1,12 @@
 from typing import List, Tuple
 from app.models import Text
 from app.schemas.requests import SearchBodyRequest, SearchSettings
-from app.services import QueryService
+from app.services import TextQueryService
 
 
 class QueryController:
-    def __init__(self, query_serivce: QueryService):
+
+    def __init__(self, query_serivce: TextQueryService):
         self.query_serivce = query_serivce
 
     async def get_keyframe_by_index(self, index: int) -> Text:

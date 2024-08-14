@@ -1,10 +1,11 @@
+from typing import Union, List
 from pydantic import BaseModel, Field
 from app.common.enum import QueryType
 
 
 class SearchBodyRequest(BaseModel):
     model: QueryType = Field(default="Text", example="Text")
-    value: str = Field(default="Text", example="HCM AI")
+    value: Union[str, List[str]] = Field(default="Text", example="HCM AI")
 
 
 class SearchSettings(BaseModel):

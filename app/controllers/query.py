@@ -22,7 +22,10 @@ class QueryController:
         # filter the text queries
         text_queries = [req.value for req in body if req.model == QueryType.TEXT]
 
-        object_queries = [req.value for req in body if req.model == QueryType.OBJECT]
+        object_queries = list(chain.from_iterable(
+            [req.value for req in body if req.model == QueryType.OBJECT]
+        ))
+        print(object_queries)
         object_query_index = []
 
         if len(object_queries) > 0:

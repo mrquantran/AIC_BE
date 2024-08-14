@@ -21,4 +21,4 @@ class Factory:
         return ObjectQueryRepository(collection=Object)
 
     def get_object_query_service(self):
-        return ObjectQueryService(query_repository=self.text_query_repository())
+        return ObjectQueryService(query_repository=self.object_query_repository())

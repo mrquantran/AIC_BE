@@ -1,20 +1,20 @@
 import os
+from beanie import init_beanie
+from contextlib import asynccontextmanager
+from motor.motor_asyncio import AsyncIOMotorClient
+from app.common.middlewares import ResponseLoggerMiddleware
+from fastapi.staticfiles import StaticFiles
 from typing import List
 from fastapi import FastAPI, Request
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.common.exceptions import CustomException
+from app.models.object import Object
 from app.routers.v1 import v1_router
 from app.config import settings
 from app.models.text import Text
-from beanie import init_beanie
-from contextlib import asynccontextmanager
-from motor.motor_asyncio import AsyncIOMotorClient
-from app.common.middlewares import ResponseLoggerMiddleware
-from fastapi.staticfiles import StaticFiles
 
-from app.services.clip_embedding import CLIPEmbedding
 
 def init_listeners(app_: FastAPI) -> None:
     @app_.exception_handler(CustomException)
@@ -23,6 +23,7 @@ def init_listeners(app_: FastAPI) -> None:
             status_code=exc.code,
             content={"error_code": exc.error_code, "message": exc.message},
         )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,7 +35,9 @@ async def lifespan(app: FastAPI):
         # username=settings.MONGO_USER,
         # password=settings.MONGO_PASSWORD,
     )
-    await init_beanie(database=app.client[settings.MONGO_DB], document_models=[Text])
+    await init_beanie(
+        database=app.client[settings.MONGO_DB], document_models=[Text, Object]
+    )
 
     yield
 
@@ -58,7 +61,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     lifespan=lifespan,
     middleware=make_middleware(),
-    docs_url= None if settings.ENVIRONMENT == "production" else "/docs",
+    docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
 )
 
 init_listeners(app_=app)

@@ -9,5 +9,5 @@ class Object(Document):
 
     class Settings:
         indexes = [
-            "key",  # This creates a single-field index on the 'key' field
+            "name",  # This creates a single-field index on the 'key' field
         ]

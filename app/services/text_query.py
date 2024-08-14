@@ -1,14 +1,12 @@
 from typing import List
+import asyncio
 from app.common.controller import BaseController
-from app.common.exceptions import NotFoundException
+from app.common.enum import QueryType
 from app.models import Text
 from app.repositories import TextQueryRepository
-from app.schemas.requests import SearchBodyRequest
 from app.schemas.requests.query import SearchSettings
 from app.schemas.responses.keyframes import KeyframeWithConfidence
 from app.config.embedding import embedder
-from app.common.enum import QueryType
-import asyncio
 
 class TextQueryService(BaseController[Text]):
 
@@ -16,24 +14,15 @@ class TextQueryService(BaseController[Text]):
         super().__init__(model=Text, repository=query_repository)
         self.query_repository = query_repository
 
-    async def get_keyframe_by_index(self, index: int) -> Text:
-        result = await self.query_repository.get_one_keyframe_by_index(index)
-
-        if not result:
-            raise NotFoundException("No keyframe found")
-
-        return result
-
     async def search_keyframes_by_text(
-        self, body: List[SearchBodyRequest], settings: SearchSettings
+        self, text_queries: List[str], object_queries: List[int], settings: SearchSettings
     ) -> List[KeyframeWithConfidence]:
         use_faiss = settings.vector_search == 'faiss'
 
         # Perform text queries concurrently
         text_queries = [
-            embedder.text_query(req.value, k=5, use_faiss=use_faiss)
-            for req in body
-            if req.model == QueryType.Text
+            embedder.text_query(value, k=5, use_faiss=use_faiss)
+            for value in text_queries
         ]
         results = await asyncio.gather(*text_queries)
 
@@ -44,20 +33,43 @@ class TextQueryService(BaseController[Text]):
             for idx, score in query_result
         }
 
-        # Get keyframes for all unique indices at once
-        keyframes = await self.query_repository.get_keyframe_by_indices(list(flattened_results.keys()))
+        text_indexes: list[int] = list(flattened_results.keys())
+        object_indexes: list[int] = object_queries
 
+        # Get keyframes for all unique indices at once
+        # Perform database fetch operations concurrently using asyncio.gather
+        text_keyframes_task = self.query_repository.get_keyframe_by_indices(
+            text_indexes
+        )
+        object_keyframes_task = self.query_repository.get_keyframe_by_indices(
+            object_indexes
+        )
+
+        text_keyframes, object_keyframes = await asyncio.gather(
+            text_keyframes_task, object_keyframes_task
+        )
         # Create KeyframeWithConfidence objects
         keyframes_with_confidence = [
             KeyframeWithConfidence(
                 key=keyframe.key,
                 value=keyframe.value,
-                confidence=flattened_results[keyframe.key]
+                confidence=flattened_results[keyframe.key],
+                type=QueryType.TEXT,
             )
-            for keyframe in keyframes
+            for keyframe in text_keyframes
+        ]
+
+        keyframes_by_object = [
+            KeyframeWithConfidence(
+                key=keyframe.key,
+                value=keyframe.value,
+                confidence=None,
+                type=QueryType.OBJECT,
+            )
+            for keyframe in object_keyframes
         ]
 
         # Sort by confidence score in descending order
         # keyframes_with_confidence.sort(key=lambda x: x.confidence, reverse=True)
 
-        return keyframes_with_confidence
+        return keyframes_with_confidence + keyframes_by_object

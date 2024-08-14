@@ -9,12 +9,20 @@ class ObjectQueryService(BaseController[Object]):
         super().__init__(model=Object, repository=query_repository)
         self.query_repository = query_repository
 
-    async def get_keyframe_by_indices(self, keys: List[str]) -> List[Object]:
+    async def search_keyframes_by_objects(self, keys: List[str]) -> List[Object]:
         """
         Get all record by indicies.
 
         :param keys: list of indices
         :return: A list of keyframes.
         """
-        cursor = self.collection.find({"name": {"$in": keys}})
-        return await cursor.to_list(length=None)
+        return await self.query_repository.get_keyframe_by_object_names(keys)
+
+    async def get_object_names(self) -> List[str]:
+        """
+        Get all object names.
+
+        :return: A list of object names.
+        """
+        result = await self.query_repository.get_object_names()
+        return result

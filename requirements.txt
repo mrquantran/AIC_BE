@@ -1,0 +1,8 @@
+fastapi
+Routes
+pydantic
+pymongo
+torch
+uvicorn
+beanie
+motor

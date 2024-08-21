@@ -18,9 +18,12 @@ def get_query_controller(
     object_query_service: ObjectQueryService = Depends(
         Factory().get_object_query_service
     ),
+    ocr_query_service: ObjectQueryService = Depends(Factory().get_ocr_query_service),
 ):
     return QueryController(
-        text_query_serivce=text_query_service, object_query_service=object_query_service
+        text_query_serivce=text_query_service,
+        object_query_service=object_query_service,
+        ocr_query_service=ocr_query_service,
     )
 
 
@@ -38,13 +41,16 @@ async def search(
     object_query_service: ObjectQueryService = Depends(
         Factory().get_object_query_service
     ),
+    ocr_query_service: ObjectQueryService = Depends(Factory().get_ocr_query_service),
     request_body: List[SearchBodyRequest] = Body(),
     vector_search: str = Query(example="faiss", description="Description for param1"),
     k_query: int = Query(5, description="kquery vector search"),
 ):
     settings = SearchSettings(vector_search=vector_search, k_query=k_query)
 
-    query_controller = get_query_controller(text_query_service, object_query_service)
+    query_controller = get_query_controller(
+        text_query_service, object_query_service, ocr_query_service
+    )
 
     query = await query_controller.search_keyframes(request_body, settings)
 

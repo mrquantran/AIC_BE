@@ -1,3 +1,4 @@
 from .text_query import TextQueryRepository
 from .object_query import ObjectQueryRepository
-__all__ = ["TextQueryRepository", "ObjectQueryRepository"]
+from .ocr_query import OCRQueryRepository
+__all__ = ["TextQueryRepository", "ObjectQueryRepository", "OCRQueryRepository"]

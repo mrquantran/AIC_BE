@@ -24,4 +24,4 @@ data/images
 *.pt
 *.bin
 
-migration/ram
+migration/ram/*.json

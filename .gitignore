@@ -23,3 +23,5 @@ data/images
 .DS_Store
 *.pt
 *.bin
+
+migration/ram

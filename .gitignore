@@ -19,3 +19,7 @@ notebooks/
 .env.dev
 
 data/images
+
+.DS_Store
+*.pt
+*.bin

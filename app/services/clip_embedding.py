@@ -1,6 +1,4 @@
 import os
-import io
-import base64
 import json
 
 from typing import List, Tuple
@@ -10,7 +8,6 @@ import torch
 import open_clip
 # from sklearn.preprocessing import normalize
 
-from PIL import Image
 import faiss
 from usearch.index import Index as UsearchIndex
 
@@ -113,11 +110,13 @@ class UsearchIndexStrategy(IndexStrategy):
         print(f"USearch index saved to {file_path}")
 
     def load_index(self, file_path: str):
-        self.usearch_index = UsearchIndex(ndim=512, metric="cosine")
+        self.usearch_index = UsearchIndex(ndim=1024, metric="cosine")
         self.usearch_index.load(file_path)
         print(f"USearch index loaded from {file_path}")
 
     def search(self, query_embedding: np.ndarray, k: int) -> List[Tuple[int, float]]:
+        print(f"Searching with query embedding of shape {query_embedding.shape}")
+        print(f"Index dimension: {self.usearch_index.ndim}")
         matches = self.usearch_index.search(query_embedding, k)
         return [(int(match.key), match.distance) for match in matches]
 
@@ -149,45 +148,47 @@ class CLIPEmbedding:
                 .numpy()
                 .astype(np.float32)
             )
-        # Get the dimension of the FAISS index
-        if use_faiss:
-            index_dimension = self.faiss_strategy.faiss_index.d
-        else:
-            index_dimension = self.usearch_strategy.usearch_index.ndim
 
-        # Resize and normalize the query embedding if necessary
-        if query_embedding.shape[1] != index_dimension:
-            print(
-                f"Resizing query embedding from {query_embedding.shape[1]} to {index_dimension}"
-            )
-            query_embedding = np.resize(query_embedding, (1, index_dimension))
-            query_embedding = normalize(query_embedding)
 
-        if use_faiss:
-            return self.faiss_strategy.search(query_embedding, k)
-        else:
-            return self.usearch_strategy.search(query_embedding[0], k)
+        # # Get the dimension of the FAISS index
+        # if use_faiss:
+        #     index_dimension = self.faiss_strategy.faiss_index.d
+        # else:
+        #     index_dimension = self.usearch_strategy.usearch_index.ndim
 
-    def image_query(
-        self, img_data: str, k: int = 20, use_faiss: bool = True
-    ) -> List[Tuple[int, float]]:
-        img_bytes = base64.b64decode(img_data)
-        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-
-        img_preprocessed = self.preprocess(img).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            query_embedding = (
-                self.model.encode_image(img_preprocessed)
-                .cpu()
-                .detach()
-                .numpy()
-                .astype(np.float32)
-            )
+        # # Resize and normalize the query embedding if necessary
+        # if query_embedding.shape[1] != index_dimension:
+        #     print(
+        #         f"Resizing query embedding from {query_embedding.shape[1]} to {index_dimension}"
+        #     )
+        #     query_embedding = np.resize(query_embedding, (1, index_dimension))
+        #     query_embedding = normalize(query_embedding)
 
         if use_faiss:
             return self.faiss_strategy.search(query_embedding, k)
         else:
             return self.usearch_strategy.search(query_embedding[0], k)
+
+    # def image_query(
+    #     self, img_data: str, k: int = 20, use_faiss: bool = True
+    # ) -> List[Tuple[int, float]]:
+    #     img_bytes = base64.b64decode(img_data)
+    #     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+    #     img_preprocessed = self.preprocess(img).unsqueeze(0).to(self.device)
+    #     with torch.no_grad():
+    #         query_embedding = (
+    #             self.model.encode_image(img_preprocessed)
+    #             .cpu()
+    #             .detach()
+    #             .numpy()
+    #             .astype(np.float32)
+    #         )
+
+    #     if use_faiss:
+    #         return self.faiss_strategy.search(query_embedding, k)
+    #     else:
+    #         return self.usearch_strategy.search(query_embedding[0], k)
 
     def get_image_paths(self, indices: List[int]) -> List[str]:
         return [self.global_index2image_path.get(i, "Unknown") for i in indices]

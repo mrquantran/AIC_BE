@@ -3,7 +3,7 @@ from app.models.ocr import OCR
 from app.repositories.object_query import ObjectQueryRepository
 from app.repositories.ocr_query import OCRQueryRepository
 from app.repositories.text_query import TextQueryRepository
-from app.models.text import Text
+from app.models.keyframe import Keyframe
 from app.services.object_query import ObjectQueryService
 from app.services.ocr_query import OCRQueryService
 from app.services.text_query import TextQueryService
@@ -16,7 +16,7 @@ class Factory:
     """
 
     def text_query_repository(self):
-        return TextQueryRepository(collection=Text)
+        return TextQueryRepository(collection=Keyframe)
 
     def get_text_query_service(self):
         return TextQueryService(query_repository=self.text_query_repository())

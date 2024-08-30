@@ -17,7 +17,7 @@ embedder = CLIPEmbedding(
 # Load the indexes (adjust paths as necessary)
 faiss_path = os.path.join(
     os.path.dirname(__file__),
-    "../../data/embedding/faiss.pt",
+    "../../data/embedding/faiss.bin",
 )
 usearch_path = os.path.join(
     os.path.dirname(__file__),

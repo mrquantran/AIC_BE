@@ -14,7 +14,7 @@ from app.models.object import Object
 from app.models.ocr import OCR
 from app.routers.v1 import v1_router
 from app.config import settings
-from app.models.text import Text
+from app.models.keyframe import Keyframe
 
 
 def init_listeners(app_: FastAPI) -> None:
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
         # password=settings.MONGO_PASSWORD,
     )
     await init_beanie(
-        database=app.client[settings.MONGO_DB], document_models=[Text, Object, OCR]
+        database=app.client[settings.MONGO_DB], document_models=[Keyframe, Object, OCR]
     )
 
     yield

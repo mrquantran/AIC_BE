@@ -2,16 +2,17 @@ from typing import List
 import asyncio
 from app.common.controller import BaseController
 from app.common.enum import QueryType
-from app.models import Text
+from app.models import Keyframe
 from app.repositories import TextQueryRepository
 from app.schemas.requests.query import SearchSettings
 from app.schemas.responses.keyframes import KeyframeWithConfidence
 from app.config.embedding import embedder
 
-class TextQueryService(BaseController[Text]):
+
+class TextQueryService(BaseController[Keyframe]):
 
     def __init__(self, query_repository: TextQueryRepository):
-        super().__init__(model=Text, repository=query_repository)
+        super().__init__(model=Keyframe, repository=query_repository)
         self.query_repository = query_repository
 
     async def search_keyframes_by_text(
@@ -19,7 +20,7 @@ class TextQueryService(BaseController[Text]):
     ) -> List[KeyframeWithConfidence]:
         use_faiss = settings.vector_search == 'faiss'
 
-        # Perform text queries concurrently
+        # Perform Keyframe queries concurrently
         text_queries = [
             embedder.text_query(value, k=settings.k_query, use_faiss=use_faiss)
             for value in text_queries

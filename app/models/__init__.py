@@ -1,4 +1,4 @@
-from .text import Text
+from .keyframe import Keyframe
 from .object import Object
 
-__all__ = ["Text", "Object"]
+__all__ = ["Keyframe", "Object"]

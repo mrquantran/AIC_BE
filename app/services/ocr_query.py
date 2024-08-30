@@ -2,7 +2,6 @@ from typing import List
 import asyncio
 from app.common.controller import BaseController
 from app.common.enum import QueryType
-from app.models import Text
 from app.models.ocr import OCR
 from app.repositories.ocr_query import OCRQueryRepository
 from app.schemas.requests.query import SearchSettings

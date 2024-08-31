@@ -9,10 +9,10 @@ class ObjectQueryRepository(BaseRepository[Object]):
 
     async def get_keyframe_by_object_names(self, keys: List[str]) -> List[Object]:
         """
-        Get all record by indicies.
+        Get keyframe index by object names
 
-        :param keys: list of indices
-        :return: A list of keyframes.
+         :param keys: list of indices
+         :return: A list of keyframes.
         """
         cursor = self.collection.find({"name": {"$in": keys}})
         return await cursor.to_list(length=None)

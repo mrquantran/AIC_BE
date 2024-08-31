@@ -5,7 +5,10 @@ from pydantic import Field
 # Định nghĩa mô hình Keyframe với chỉ mục cho các trường con trong tags
 class Keyframe(Document):
     key: Indexed(int, unique=True) = Field(default=0) #type: ignore
-    path: Optional[str] = None
+    value: Optional[str] = None
+    video_id: Indexed(int) = Field(default=0) # type: ignore
+    group_id: Indexed(int) = Field(default=0) # type: ignore 
+    frame_id: Indexed(int) = Field(default=0) # type: ignore
     tags: Dict[str, float] = Field(default_factory=dict)
 
     class Settings:

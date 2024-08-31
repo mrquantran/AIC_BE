@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -35,17 +35,33 @@ def load_json_data(file_path: str) -> Dict[str, str]:
         return json.load(f)
 
 
-def transform_data(data: Dict[str, str]) -> List[Dict[str, Union[int, str]]]:
-    return [
-        Keyframe(key=int(key), value=value)
-        for key, value in data.items()
-    ]
+def transform_data(data: Dict[str, str]) -> List[Keyframe]:
+    keyframes = []
+    for key, value in data.items():
+        try:
+            # Assuming the value format is "{group}/{video}/{frame}"
+            group, video, frame = map(int, value.split("/"))
+
+            keyframes.append(
+                Keyframe(
+                    key=key,  # Assign the frame to the 'key'
+                    value=value,  # Keep the original value
+                    group_id=group,  # Assign the group
+                    video_id=video,  # Assign the video
+                    frame_id=frame  # Assign the frame
+                )
+            )
+        except ValueError as e:
+            print(f"Skipping invalid entry {value}: {e}")
+            continue
+
+    return keyframes
 
 
-path = os.path.join(os.path.dirname(__file__), './data/global2imgpath.json')
+path = os.path.join(os.path.dirname(__file__), 'global2imgpath.json')
 
 
-async def migrate(file_path: str = './data/global2imgpath.json'):
+async def migrate(file_path: str = 'global2imgpath.json'):
     await init_db()
 
     data = load_json_data(file_path)

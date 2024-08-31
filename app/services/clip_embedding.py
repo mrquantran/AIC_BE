@@ -9,6 +9,7 @@ import open_clip
 # from sklearn.preprocessing import normalize
 
 import faiss
+import usearch
 from usearch.index import Index as UsearchIndex
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
@@ -116,9 +117,27 @@ class UsearchIndexStrategy(IndexStrategy):
 
     def search(self, query_embedding: np.ndarray, k: int) -> List[Tuple[int, float]]:
         print(f"Searching with query embedding of shape {query_embedding.shape}")
+        print(f"Query embedding dtype: {query_embedding.dtype}")
         print(f"Index dimension: {self.usearch_index.ndim}")
-        matches = self.usearch_index.search(query_embedding, k)
-        return [(int(match.key), match.distance) for match in matches]
+        print(f"USearch version: {usearch.__version__}")
+
+        # Ensure query_embedding is 2D and float32
+        if query_embedding.ndim == 1:
+            query_embedding = query_embedding.reshape(1, -1)
+        query_embedding = query_embedding.astype(np.float32)
+
+        print(f"Prepared query embedding shape: {query_embedding.shape}")
+        print(f"Prepared query embedding dtype: {query_embedding.dtype}")
+
+        try:
+            matches = self.usearch_index.search(query_embedding, k)
+            return [(int(match.key), match.distance) for match in matches]
+        except Exception as e:
+            print(f"Error during search: {str(e)}")
+            print(
+                f"Query embedding min: {query_embedding.min()}, max: {query_embedding.max()}"
+            )
+            raise
 
 
 class CLIPEmbedding:
@@ -149,25 +168,24 @@ class CLIPEmbedding:
                 .astype(np.float32)
             )
 
+        # Get the dimension of the FAISS index
+        if use_faiss:
+            index_dimension = self.faiss_strategy.faiss_index.d
+        else:
+            index_dimension = self.usearch_strategy.usearch_index.ndim
 
-        # # Get the dimension of the FAISS index
-        # if use_faiss:
-        #     index_dimension = self.faiss_strategy.faiss_index.d
-        # else:
-        #     index_dimension = self.usearch_strategy.usearch_index.ndim
-
-        # # Resize and normalize the query embedding if necessary
-        # if query_embedding.shape[1] != index_dimension:
-        #     print(
-        #         f"Resizing query embedding from {query_embedding.shape[1]} to {index_dimension}"
-        #     )
-        #     query_embedding = np.resize(query_embedding, (1, index_dimension))
-        #     query_embedding = normalize(query_embedding)
+        # Resize and normalize the query embedding if necessary
+        if query_embedding.shape[1] != index_dimension:
+            print(
+                f"Resizing query embedding from {query_embedding.shape[1]} to {index_dimension}"
+            )
+            query_embedding = np.resize(query_embedding, (1, index_dimension))
+            query_embedding = normalize(query_embedding)
 
         if use_faiss:
             return self.faiss_strategy.search(query_embedding, k)
         else:
-            return self.usearch_strategy.search(query_embedding[0], k)
+            return self.usearch_strategy.search(query_embedding[0], 500)
 
     # def image_query(
     #     self, img_data: str, k: int = 20, use_faiss: bool = True
@@ -201,6 +219,7 @@ class CLIPEmbedding:
     ):
         if faiss_path:
             self.faiss_strategy.load_index(faiss_path)
+            
 
         if usearch_path:
             self.usearch_strategy.load_index(usearch_path)

@@ -6,6 +6,7 @@ from app.repositories.text_query import TextQueryRepository
 from app.models.keyframe import Keyframe
 from app.services.object_query import ObjectQueryService
 from app.services.ocr_query import OCRQueryService
+from app.services.reciprocal_rank_fusion import ReciporalRankFusionService
 from app.services.text_query import TextQueryService
 
 
@@ -32,3 +33,6 @@ class Factory:
 
     def ocr_query_repository(self):
         return OCRQueryRepository(collection=OCR)
+    
+    def get_reciprocal_rank_fusion_service(self):
+        return ReciporalRankFusionService()

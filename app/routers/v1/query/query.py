@@ -45,8 +45,9 @@ async def search(
     request_body: List[SearchBodyRequest] = Body(),
     vector_search: str = Query(example="faiss", description="Description for param1"),
     k_query: int = Query(5, description="kquery vector search"),
+    display: int = Query(5, description="display vector search"),
 ):
-    settings = SearchSettings(vector_search=vector_search, k_query=k_query)
+    settings = SearchSettings(vector_search=vector_search, k_query=k_query, display=display)
 
     query_controller = get_query_controller(
         text_query_service, object_query_service, ocr_query_service

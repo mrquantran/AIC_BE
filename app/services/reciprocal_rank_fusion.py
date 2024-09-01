@@ -1,87 +1,75 @@
-from typing import Dict, List, Tuple
-
+from typing import List, Dict
 from app.schemas.responses.keyframes import KeyframeWithConfidence
+from collections import defaultdict
 
 
 class ReciporalRankFusionService:
-    def __init__(self):
-        pass
+    def __init__(self, k: int = 60):
+        self.k = k
 
-    def format_keyframes_results(self, keyframes: List[KeyframeWithConfidence]) -> List[Tuple[int, float]]:
-        return [(keyframe.key, keyframe.confidence) for keyframe in keyframes]
-
-    def combine_results(
-        self, keyframes: List[KeyframeWithConfidence], results: List[Tuple[int, float]]
-    ) -> List[KeyframeWithConfidence]:
-        # Create a dictionary to map keyframe keys to KeyframeWithConfidence objects
-        keyframe_dict = {keyframe.key: keyframe for keyframe in keyframes}
-
-        # Combine the results with corresponding KeyframeWithConfidence objects
-        final = []
-
-        for idx, score in results:
-            if idx in keyframe_dict:
-                final.append(
-                    KeyframeWithConfidence(
-                        key=keyframe_dict[idx].key,
-                        value=keyframe_dict[idx].value,
-                        confidence=score,
-                        video_id=keyframe_dict[idx].video_id,
-                        group_id=keyframe_dict[idx].group_id,
-                    )
-                )
-            
-                # Assign ranks based on the sorted order
-        for rank, keyframe in enumerate(final, start=1):
-            keyframe.confidence = rank  # Replace the confidence score with the rank
-
-        return final
-
-    def normalize_scores(self, scores: List[Tuple[int, float]]) -> Dict[int, float]:
+    def normalize_scores(self, scores: Dict[int, float]) -> Dict[int, float]:
         if not scores:
             return {}
 
-        min_score = min(score for _, score in scores)
-        max_score = max(score for _, score in scores)
+        min_score = min(scores.values())
+        max_score = max(scores.values())
+
         if max_score == min_score:
-            return {index: 1.0 for index, _ in scores}
+            return {index: 1.0 for index in scores}
+
         return {
             index: (score - min_score) / (max_score - min_score)
-            for index, score in scores
+            for index, score in scores.items()
         }
 
     def reciprocal_rank_fusion(
         self,
-        clip_results: List[Tuple[int, float]],
-        object_results: List[Tuple[int, float]],
-        k: int = 60,
-    ) -> List[Tuple[int, float]]:
-        print(f"Clip results: {len(clip_results)}")
-        print(f"Object results: {len(object_results)}")
-
+        clip_keyframes: List[KeyframeWithConfidence],
+        object_keyframes: List[KeyframeWithConfidence],
+    ) -> List[KeyframeWithConfidence]:
         def reciprocal_rank(score: float) -> float:
-            return 1 / (k + (1 - score))
+            return 1 / (self.k + (1 - score))
 
-        clip_scores_norm = self.normalize_scores(clip_results)
-        object_scores_norm = self.normalize_scores(object_results)
+        # Create dictionaries for faster lookup
+        clip_dict = {kf.key: kf.confidence for kf in clip_keyframes}
+        object_dict = {kf.key: kf.confidence for kf in object_keyframes}
 
-        clip_weights = {
-            index: reciprocal_rank(score) for index, score in clip_scores_norm.items()
-        }
-        object_weights = {
-            index: reciprocal_rank(score) for index, score in object_scores_norm.items()
-        }
+        print(f"Clip results: {len(clip_dict)}")
+        print(f"Object results: {len(object_dict)}")
 
-        combined_weights = {}
-        all_indices = set(clip_weights.keys()) | set(object_weights.keys())
+        # Normalize scores
+        clip_scores_norm = self.normalize_scores(clip_dict)
+        object_scores_norm = self.normalize_scores(object_dict)
 
-        for index in all_indices:
-            combined_weights[index] = clip_weights.get(index, 0) + object_weights.get(
-                index, 0
-            )
+        # Calculate reciprocal ranks
+        combined_weights = defaultdict(float)
+        for index, score in clip_scores_norm.items():
+            combined_weights[index] += reciprocal_rank(score)
+        for index, score in object_scores_norm.items():
+            combined_weights[index] += reciprocal_rank(score)
 
-        combined_weights = sorted(
-            combined_weights.items(), key=lambda x: x[1], reverse=True
+        # Sort combined weights
+        sorted_indices = sorted(
+            combined_weights, key=combined_weights.get, reverse=True
         )
-        print(f"Combined results: {len(combined_weights)}")
-        return combined_weights
+        print(f"Combined results: {len(sorted_indices)}")
+
+        # Create a dictionary to map keyframe keys to KeyframeWithConfidence objects
+        all_keyframes = {kf.key: kf for kf in clip_keyframes + object_keyframes}
+
+        # Combine the results with corresponding KeyframeWithConfidence objects
+        final_results = []
+        for rank, idx in enumerate(sorted_indices, start=1):
+            if idx in all_keyframes:
+                keyframe = all_keyframes[idx]
+                final_results.append(
+                    KeyframeWithConfidence(
+                        key=keyframe.key,
+                        value=keyframe.value,
+                        confidence=rank,
+                        video_id=keyframe.video_id,
+                        group_id=keyframe.group_id,
+                    )
+                )
+
+        return final_results

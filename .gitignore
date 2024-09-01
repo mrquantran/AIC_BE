@@ -19,6 +19,7 @@ notebooks/
 .env.dev
 
 data/images
+data/videos
 
 .DS_Store
 *.pt

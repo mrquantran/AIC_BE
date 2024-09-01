@@ -62,9 +62,7 @@ class QueryController:
             )
         )
 
-        reciporalRankFusionService = ReciporalRankFusionService()
-
-        results = reciporalRankFusionService.reciprocal_rank_fusion(
+        results = ReciporalRankFusionService().reciprocal_rank_fusion(
             clip_keyframes,
             object_keyframes,
         )[0 : settings.display]

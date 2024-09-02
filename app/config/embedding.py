@@ -2,10 +2,10 @@ import os
 from app.services.clip_embedding import CLIPEmbedding
 
 # Define the model name and nick name
-# model_name = "hf-hub:laion/CLIP-convnext_xxlarge-laion2B-s34B-b82K-augreg-soup"
-# model_nick_name = "CLIP_convnext_xxlarge_laion2B_s34B_b82K_augreg_soup"
-model_name = "hf-hub:apple/MobileCLIP-B-LT-OpenCLIP"
-model_nick_name = "mobile_clip_B_LT_openCLIP"
+model_name = "hf-hub:laion/CLIP-convnext_xxlarge-laion2B-s34B-b82K-augreg-soup"
+model_nick_name = "CLIP_convnext_xxlarge_laion2B_s34B_b82K_augreg_soup"
+# model_name = "hf-hub:apple/MobileCLIP-B-LT-OpenCLIP"
+# model_nick_name = "mobile_clip_B_LT_openCLIP"
 
 # Initialize the CLIPEmbedding class
 embedder = CLIPEmbedding(

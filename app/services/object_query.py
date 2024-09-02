@@ -9,6 +9,8 @@ class ObjectQueryService(BaseController[Object]):
         super().__init__(model=Object, repository=query_repository)
         self.query_repository = query_repository
 
+    
+
     async def search_keyframes_by_objects(self, keys: List[str]) -> List[Object]:
         """
         Get all record by indicies.

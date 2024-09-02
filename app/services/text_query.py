@@ -1,11 +1,11 @@
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 import asyncio
 from app.common.controller import BaseController
 from app.common.enum import QueryType
 from app.models import Keyframe
 from app.repositories import TextQueryRepository
-from app.schemas.requests.query import SearchSettings
-from app.schemas.responses.keyframes import KeyframeWithConfidence
+from app.schemas.requests.query import SearchSettings, TemporalGroupQuery
+from app.schemas.responses.keyframes import KeyFrameInformation, KeyframeWithConfidence
 from app.config.embedding import embedder
 
 
@@ -15,11 +15,71 @@ class TextQueryService(BaseController[Keyframe]):
         super().__init__(model=Keyframe, repository=query_repository)
         self.query_repository = query_repository
 
+    async def get_nearest_index(
+        self, group_id: int, video_id: int, keyframe_id: int
+    ) -> KeyFrameInformation:
+        return await self.query_repository.get_index_by_keyframe_information(
+            group_id=group_id, video_id=video_id, keyframe_id=keyframe_id
+        )
+
+    def extract_keyframe_tuples(
+        self, mongodb_results: List[dict], temporal_groups: List[TemporalGroupQuery]
+    ) -> List[Tuple[int, int]]:
+        # Create a lookup dictionary from MongoDB results for quick access to max keyframe values
+        max_keyframe_lookup = {
+            (result["video_id"], result["group_id"]): max(result["range"])
+            for result in mongodb_results
+        }
+
+        output = []
+
+        for group in temporal_groups:
+            for video in group.videos:
+                keyframes = video.keyframes
+
+                if len(keyframes) > 1:
+                    # More than one keyframe, return (min, max) tuple
+                    output.append((min(keyframes), max(keyframes)))
+                elif len(keyframes) == 1:
+                    # Only one keyframe, find the max keyframe from the corresponding MongoDB result
+                    max_keyframe_of_video = max_keyframe_lookup.get(
+                        (video.video_id, group.group_id), None
+                    )
+                    if max_keyframe_of_video is not None:
+                        output.append((keyframes[0], max_keyframe_of_video))
+
+        return output
+
+    async def search_range_by_groups(
+        self, groups_videos_queries: List[TemporalGroupQuery]
+    ) -> List[Tuple[int, int]]:
+        groups_list = [group.group_id for group in groups_videos_queries]
+        video_list = [
+            video.video_id for group in groups_videos_queries for video in group.videos
+        ]
+
+        # query the max and min keyframe index of each video
+        keyframe_by_group_video = (
+            await self.query_repository.get_max_min_keyframe_by_video_and_group(
+                groups_list, video_list
+            )
+        )
+
+        print(f"Keyframe by group video: {keyframe_by_group_video}")
+
+        result = self.extract_keyframe_tuples(
+            keyframe_by_group_video, groups_videos_queries
+        )
+        print(f"Result: {result}")
+
+        return result
+
     async def search_keyframes_by_text(
         self,
         text_queries: List[str],
         object_queries: Tuple[List[str], List[int]],
         settings: SearchSettings,
+        range_queries: List[Tuple[int, int]],
     ) -> Tuple[List[Keyframe], List[Keyframe]]:
         # Unpack object queries
         # object_tags_query is a list of object tags
@@ -33,7 +93,9 @@ class TextQueryService(BaseController[Keyframe]):
 
         # Perform Keyframe queries concurrently
         text_queries = [
-            embedder.text_query(value, k=kquery, use_faiss=use_faiss)
+            embedder.text_query(
+                value, k=kquery, use_faiss=use_faiss, ranges=range_queries
+            )
             for value in text_queries
         ]
         results = await asyncio.gather(*text_queries)
@@ -74,9 +136,9 @@ class TextQueryService(BaseController[Keyframe]):
                 key=keyframe.key,
                 value=keyframe.value,
                 confidence=[
-                   keyframe.tags.get(object_tag)
-                     for object_tag in object_tags_query
-                     if keyframe.tags.get(object_tag) is not None
+                    keyframe.tags.get(object_tag)
+                    for object_tag in object_tags_query
+                    if keyframe.tags.get(object_tag) is not None
                 ],
                 video_id=keyframe.video_id,
                 group_id=keyframe.group_id,

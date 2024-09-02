@@ -10,3 +10,11 @@ class KeyframeWithConfidence(BaseModel):
     video_id: int
     group_id: int
     # type: QueryType = QueryType.TEXT
+
+class KeyFrameInformation(BaseModel):
+    index: int
+    frame_id: int
+    video_id: int
+    group_id: int
+    value: str
+    # type: QueryType = QueryType.TEXT

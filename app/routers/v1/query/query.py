@@ -1,7 +1,8 @@
 from typing import List
 from app.common.factory import Factory
 from app.controllers.object import ObjectController
-from app.schemas.responses.keyframes import KeyframeWithConfidence
+from app.schemas.requests.query import GetNearestIndexRequest
+from app.schemas.responses.keyframes import KeyFrameInformation, KeyframeWithConfidence
 from fastapi import APIRouter, Body, Depends, Query
 from app.schemas.extras import Response
 from app.schemas.requests import SearchBodyRequest, SearchSettings
@@ -47,7 +48,9 @@ async def search(
     k_query: int = Query(5, description="kquery vector search"),
     display: int = Query(5, description="display vector search"),
 ):
-    settings = SearchSettings(vector_search=vector_search, k_query=k_query, display=display)
+    settings = SearchSettings(
+        vector_search=vector_search, k_query=k_query, display=display
+    )
 
     query_controller = get_query_controller(
         text_query_service, object_query_service, ocr_query_service
@@ -56,6 +59,29 @@ async def search(
     query = await query_controller.search_keyframes(request_body, settings)
 
     return Response[List[KeyframeWithConfidence]](data=query)
+
+
+@query_router.post(
+    "/index/nearest",
+    response_model=Response[KeyFrameInformation],
+    status_code=200,
+    description="Get Index Nearby",
+)
+async def query_index_by_keframe_information(
+    request_body: GetNearestIndexRequest = Body(),
+    query_service: TextQueryService = Depends(Factory().get_text_query_service),
+) -> Response[KeyFrameInformation]:
+    group_id = request_body.group_id
+    video_id = request_body.video_id
+    keyframe_id = request_body.keyframe_id
+    print(f"group_id: {group_id}, video_id: {video_id}, keyframe_id: {keyframe_id}")
+    print(f"query_service: {query_service}")
+    # print all method query_service
+    query = await query_service.get_nearest_index(
+        group_id= int(group_id), video_id= int(video_id), keyframe_id= int(keyframe_id)
+    )
+
+    return Response[KeyFrameInformation](data=query)
 
 
 @query_router.get(

@@ -1,15 +1,10 @@
 import os
 import json
-
 from typing import List, Tuple
 import numpy as np
-
 import torch
 import open_clip
-# from sklearn.preprocessing import normalize
-
 import faiss
-import usearch
 from usearch.index import Index as UsearchIndex
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
@@ -84,15 +79,46 @@ class FaissIndexStrategy(IndexStrategy):
         print(f"FAISS index loaded from {file_path}")
 
     def search(self, query_embedding: np.ndarray, k: int) -> List[Tuple[int, float]]:
-            # Ensure query_embedding is 2D and has the correct shape
+        # Ensure query_embedding is 2D and has the correct shape
         if query_embedding.ndim == 1:
             query_embedding = query_embedding.reshape(1, -1)
-    
+
         if query_embedding.shape[1] != self.faiss_index.d:
-            raise ValueError(f"Query embedding dimension {query_embedding.shape[1]} does not match index dimension {self.faiss_index.d}")
-    
+            raise ValueError(
+                f"Query embedding dimension {query_embedding.shape[1]} does not match index dimension {self.faiss_index.d}"
+            )
+
         faiss.normalize_L2(query_embedding)
         distances, indices = self.faiss_index.search(query_embedding, k)
+        return list(zip(indices[0], distances[0]))
+
+    def search_in_ranges(
+        self, query_embedding: np.ndarray, ranges: List[Tuple[int, int]], k: int
+    ) -> List[Tuple[int, float]]:
+        # Flatten the range of tuples into a list of indices
+        filter_ids = []
+        for start, end in ranges:
+            filter_ids.extend(range(start, end + 1))
+        print(f"Searching in FAISS within specified ranges: {filter_ids}")
+
+        # Create an ID selector for the specified ranges
+        id_selector = faiss.IDSelectorArray(np.array(filter_ids, dtype=np.int64))
+
+        # Prepare search parameters with the selector
+        params = faiss.SearchParametersIVF()
+        params.sel = id_selector
+
+        # Ensure query_embedding is 2D and normalized
+        if query_embedding.ndim == 1:
+            query_embedding = query_embedding.reshape(1, -1)
+
+        if query_embedding.shape[1] != self.faiss_index.d:
+            raise ValueError(
+                f"Query embedding dimension {query_embedding.shape[1]} does not match index dimension {self.faiss_index.d}"
+            )
+
+        faiss.normalize_L2(query_embedding)
+        distances, indices = self.faiss_index.search(query_embedding, k, params=params)
         return list(zip(indices[0], distances[0]))
 
 
@@ -116,28 +142,39 @@ class UsearchIndexStrategy(IndexStrategy):
         print(f"USearch index loaded from {file_path}")
 
     def search(self, query_embedding: np.ndarray, k: int) -> List[Tuple[int, float]]:
-        print(f"Searching with query embedding of shape {query_embedding.shape}")
-        print(f"Query embedding dtype: {query_embedding.dtype}")
-        print(f"Index dimension: {self.usearch_index.ndim}")
-        print(f"USearch version: {usearch.__version__}")
+        print("Searching in Usearch")
+        matches = self.usearch_index.search(query_embedding, k)
+        return [(int(match.key), match.distance) for match in matches]
 
-        # Ensure query_embedding is 2D and float32
-        if query_embedding.ndim == 1:
-            query_embedding = query_embedding.reshape(1, -1)
-        query_embedding = query_embedding.astype(np.float32)
+    def search_in_ranges(
+        self, query_embedding: np.ndarray, ranges: List[Tuple[int, int]], k: int
+    ) -> List[Tuple[int, float]]:
+        """
+        Searches for the top-k nearest embeddings within specified ranges.
 
-        print(f"Prepared query embedding shape: {query_embedding.shape}")
-        print(f"Prepared query embedding dtype: {query_embedding.dtype}")
+        :param query_embedding: The query embedding vector.
+        :param ranges: A list of tuples, each specifying a (min, max) range of IDs to consider in the search.
+        :param k: The number of top results to return.
+        :return: A list of tuples (index, distance) for the top-k nearest neighbors within the ranges.
+        """
+        print("Searching in Usearch within specified ranges")
+        matches = self.usearch_index.search(
+            query_embedding, k * 10
+        )  # Perform a larger search to filter later
+        filtered_matches = []
 
-        try:
-            matches = self.usearch_index.search(query_embedding, k)
-            return [(int(match.key), match.distance) for match in matches]
-        except Exception as e:
-            print(f"Error during search: {str(e)}")
-            print(
-                f"Query embedding min: {query_embedding.min()}, max: {query_embedding.max()}"
-            )
-            raise
+        # Filter matches based on the provided ranges
+        for match in matches:
+            key = int(match.key)
+            for range_min, range_max in ranges:
+                if range_min <= key <= range_max:
+                    filtered_matches.append((key, match.distance))
+                    break  # No need to check further ranges if match is found
+
+        # Sort the filtered matches based on distance and take the top k results
+        filtered_matches = sorted(filtered_matches, key=lambda x: x[1])[:k]
+
+        return filtered_matches
 
 
 class CLIPEmbedding:
@@ -156,7 +193,11 @@ class CLIPEmbedding:
         self.global_index2image_path = {}
 
     async def text_query(
-        self, query: str, k: int = 20, use_faiss: bool = True
+        self,
+        query: str,
+        k: int = 20,
+        use_faiss: bool = True,
+        ranges: List[Tuple[int, int]] = None,
     ) -> List[Tuple[int, float]]:
         with torch.no_grad():
             text_tokens = self.tokenizer([query]).to(self.device)
@@ -183,30 +224,17 @@ class CLIPEmbedding:
             query_embedding = normalize(query_embedding)
 
         if use_faiss:
-            return self.faiss_strategy.search(query_embedding, k)
+            if len(ranges) > 0:
+                return self.faiss_strategy.search_in_ranges(query_embedding, ranges, k)
+            else:
+                return self.faiss_strategy.search(query_embedding, k)
         else:
-            return self.usearch_strategy.search(query_embedding[0], 500)
-
-    # def image_query(
-    #     self, img_data: str, k: int = 20, use_faiss: bool = True
-    # ) -> List[Tuple[int, float]]:
-    #     img_bytes = base64.b64decode(img_data)
-    #     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-
-    #     img_preprocessed = self.preprocess(img).unsqueeze(0).to(self.device)
-    #     with torch.no_grad():
-    #         query_embedding = (
-    #             self.model.encode_image(img_preprocessed)
-    #             .cpu()
-    #             .detach()
-    #             .numpy()
-    #             .astype(np.float32)
-    #         )
-
-    #     if use_faiss:
-    #         return self.faiss_strategy.search(query_embedding, k)
-    #     else:
-    #         return self.usearch_strategy.search(query_embedding[0], k)
+            if len(ranges) > 0:
+                return self.usearch_strategy.search_in_ranges(
+                    query_embedding[0], ranges, k
+                )
+            else:
+                return self.usearch_strategy.search(query_embedding[0], 500)
 
     def get_image_paths(self, indices: List[int]) -> List[str]:
         return [self.global_index2image_path.get(i, "Unknown") for i in indices]
@@ -219,7 +247,6 @@ class CLIPEmbedding:
     ):
         if faiss_path:
             self.faiss_strategy.load_index(faiss_path)
-            
 
         if usearch_path:
             self.usearch_strategy.load_index(usearch_path)

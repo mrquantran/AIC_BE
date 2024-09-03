@@ -94,9 +94,13 @@ class FaissIndexStrategy(IndexStrategy):
         distances, indices = self.faiss_index.search(query_embedding, k)
         return list(zip(indices[0], distances[0]))
 
+    # ranges is the list of tuples (min, max) for each range (for index)
+    # e.g. [(0, 100), (200, 300)]
+    # the search will be performed within the specified ranges
     def search_in_ranges(
         self, query_embedding: np.ndarray, ranges: List[Tuple[int, int]], k: int
     ) -> List[Tuple[int, float]]:
+        print('ranges:', ranges)
         # Flatten the range of tuples into a list of indices
         filter_ids = []
         for start, end in ranges:
@@ -107,17 +111,7 @@ class FaissIndexStrategy(IndexStrategy):
         id_selector = faiss.IDSelectorArray(np.array(filter_ids, dtype=np.int64))
 
         # Prepare search parameters with the selector
-        params = faiss.SearchParametersIVF()
-        params.sel = id_selector
-
-        # Ensure query_embedding is 2D and normalized
-        if query_embedding.ndim == 1:
-            query_embedding = query_embedding.reshape(1, -1)
-
-        if query_embedding.shape[1] != self.faiss_index.d:
-            raise ValueError(
-                f"Query embedding dimension {query_embedding.shape[1]} does not match index dimension {self.faiss_index.d}"
-            )
+        params = faiss.SearchParametersIVF(sel=id_selector)
 
         faiss.normalize_L2(query_embedding)
         distances, indices = self.faiss_index.search(query_embedding, k, params=params)

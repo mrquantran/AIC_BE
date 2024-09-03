@@ -27,5 +27,5 @@ class GetNearestIndexRequest(BaseModel):
 
 class SearchSettings(BaseModel):
     vector_search: str = Field(default="faiss")
-    k_query: int = Field(default=5)
-    display: int = Field(default=5)
+    k_query: int = Field(default=20)
+    display: int = Field(default=10)

@@ -33,6 +33,7 @@ class QueryController:
         self, body: List[SearchBodyRequest], settings: SearchSettings
     ):
         text_queries = []
+        audio_queries = []
         temporal_queries = []
         object_tags = []
 
@@ -43,12 +44,12 @@ class QueryController:
                 object_tags.append(req.value)
             elif req.model == QueryType.TEMPORAL:
                 temporal_queries.append(req.value)
-        print(f"temporal ${temporal_queries}")
+            elif req.model == QueryType.AUDIO:
+                audio_queries.append(req.value)
+
         groups_videos_queries: List[TemporalGroupQuery] = []
         keyframe_by_group_video = []
         if len(temporal_queries) > 0:
-            print(f"temporal ${temporal_queries}")
-            # auto get the first element of temporal queries
             groups_videos_queries = temporal_queries[0]
 
             keyframe_by_group_video = (
@@ -59,9 +60,6 @@ class QueryController:
 
         # filter the text queries
         clip_query = list(text_queries)
-
-        # filter by ocr queries
-        # ocr_queries = [req.value for req in body if req.model == QueryType.OCR]
 
         object_tags = list(chain.from_iterable(object_tags))
         object_query_index = []
@@ -80,18 +78,23 @@ class QueryController:
             object_query_index,
         )
 
-        clip_keyframes, object_keyframes = (
+        clip_keyframes, object_keyframes, audio_keyframes = (
             await self.text_query_serivce.search_keyframes_by_text(
                 text_queries=clip_query,
                 object_queries=object_query,
+                audio_queries=audio_queries,
                 settings=settings,
                 range_queries=keyframe_by_group_video,
             )
         )
 
+        print(f"Audiokf: {audio_keyframes}")
+        print(f"len audiokf: {len(audio_keyframes)}")
+
         results = ReciporalRankFusionService().reciprocal_rank_fusion(
-            clip_keyframes,
-            object_keyframes,
+            clip_keyframes=clip_keyframes,
+            object_keyframes=object_keyframes,
+            audio_keyframes=audio_keyframes,
         )[0 : settings.display]
 
         return results

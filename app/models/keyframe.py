@@ -5,6 +5,7 @@ from pydantic import Field
 # Định nghĩa mô hình Keyframe với chỉ mục cho các trường con trong tags
 class Keyframe(Document):
     key: Indexed(int, unique=True) = Field(default=0) #type: ignore
+    audio_index: Indexed(int) = Field(default=0)  # type: ignore
     value: Optional[str] = None
     video_id: Indexed(int) = Field(default=0) # type: ignore
     group_id: Indexed(int) = Field(default=0) # type: ignore 

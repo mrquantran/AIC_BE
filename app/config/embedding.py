@@ -2,10 +2,10 @@ import os
 from app.services.clip_embedding import CLIPEmbedding
 
 # Define the model name and nick name
-model_name = "hf-hub:laion/CLIP-convnext_xxlarge-laion2B-s34B-b82K-augreg-soup"
-model_nick_name = "CLIP_convnext_xxlarge_laion2B_s34B_b82K_augreg_soup"
-# model_name = "hf-hub:apple/MobileCLIP-B-LT-OpenCLIP"
-# model_nick_name = "mobile_clip_B_LT_openCLIP"
+# model_name = "hf-hub:laion/CLIP-convnext_xxlarge-laion2B-s34B-b82K-augreg-soup"
+# model_nick_name = "CLIP_convnext_xxlarge_laion2B_s34B_b82K_augreg_soup"
+model_name = "hf-hub:apple/MobileCLIP-B-LT-OpenCLIP"
+model_nick_name = "mobile_clip_B_LT_openCLIP"
 
 # Initialize the CLIPEmbedding class
 embedder = CLIPEmbedding(
@@ -26,6 +26,10 @@ usearch_path = os.path.join(
     os.path.dirname(__file__),
     "../../data/embedding/usearch.bin",
 )
+audio_usearch_path = os.path.join(
+    os.path.dirname(__file__),
+    "../../data/embedding/audio_usearch.bin",
+)
 # faiss_ocr_path = os.path.join(
 #     os.path.dirname(__file__), "../../data/embedding/ocr/faiss.bin"
 # )
@@ -39,12 +43,11 @@ global2imgpath_path = os.path.join(
 # global2imgpath_path_ocr = os.path.join(
 #     os.path.dirname(__file__), "../../data/embedding/ocr/global_json_path.json"
 # )
-
-
 embedder.load_indexes(
     faiss_path=faiss_path,
     usearch_path=usearch_path,
     global2imgpath_path=global2imgpath_path,
+    audio_usearch_path=audio_usearch_path,
 )
 # embedder_ocr.load_indexes(
 #     faiss_path=faiss_ocr_path,

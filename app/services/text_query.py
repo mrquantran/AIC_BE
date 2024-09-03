@@ -79,6 +79,7 @@ class TextQueryService(BaseController[Keyframe]):
         text_queries: List[str],
         object_queries: Tuple[List[str], List[int]],
         settings: SearchSettings,
+        audio_queries: List[str],
         range_queries: List[Tuple[int, int]],
     ) -> Tuple[List[Keyframe], List[Keyframe]]:
         # Unpack object queries
@@ -90,19 +91,38 @@ class TextQueryService(BaseController[Keyframe]):
         # from settings query params
         use_faiss = settings.vector_search == "faiss"
         kquery = settings.k_query
+        audio_results = []
+        text_results = []
 
-        # Perform Keyframe queries concurrently
+        audio_queries = [
+            embedder.audio_query_by_text(text_query=value, k=kquery)
+            for value in audio_queries
+        ]
+        print(f"Audio queries: {audio_queries}")
+
+        if len(audio_queries) > 0:
+            audio_results = await asyncio.gather(*audio_queries)
+            print(f"Audio results: {audio_results}")
+
         text_queries = [
             embedder.text_query(
                 value, k=kquery, use_faiss=use_faiss, ranges=range_queries
             )
             for value in text_queries
         ]
-        results = await asyncio.gather(*text_queries)
+        if len(text_queries) > 0:
+            text_results = await asyncio.gather(*text_queries)
+            print(f"Text results: {text_results}")
+
+        flattened_results_audio = {
+            int(idx): score for query_result in audio_results for idx, score in query_result
+        }
 
         # Flatten results and remove duplicates
         flattened_results = {
-            int(idx): score for query_result in results for idx, score in query_result
+            int(idx): score
+            for query_result in text_results
+            for idx, score in query_result
         }
 
         text_indexes: list[int] = list(flattened_results.keys())
@@ -115,9 +135,12 @@ class TextQueryService(BaseController[Keyframe]):
         object_keyframes_task = self.query_repository.get_keyframe_by_indices(
             object_indexes,
         )
+        audio_query_task = self.query_repository.get_keyframe_by_audio_indexes(
+            list(flattened_results_audio.keys())
+        )
 
-        text_keyframes, object_keyframes = await asyncio.gather(
-            text_keyframes_task, object_keyframes_task
+        text_keyframes, object_keyframes, audio_keyframes = await asyncio.gather(
+            text_keyframes_task, object_keyframes_task, audio_query_task
         )
 
         keyframes_with_confidence = [
@@ -129,6 +152,17 @@ class TextQueryService(BaseController[Keyframe]):
                 group_id=keyframe.group_id,
             )
             for keyframe in text_keyframes
+        ]
+
+        keyframes_audio = [
+            KeyframeWithConfidence(
+                key=keyframe.key,
+                value=keyframe.value,
+                confidence=flattened_results_audio[keyframe.audio_index],
+                video_id=keyframe.video_id,
+                group_id=keyframe.group_id,
+            )
+            for keyframe in audio_keyframes
         ]
 
         keyframes_with_object = [
@@ -158,4 +192,8 @@ class TextQueryService(BaseController[Keyframe]):
             for confidence in keyframe.confidence
         ]
 
-        return (keyframes_with_confidence, keyframes_with_object_splitted)
+        return (
+            keyframes_with_confidence,
+            keyframes_with_object_splitted,
+            keyframes_audio,
+        )

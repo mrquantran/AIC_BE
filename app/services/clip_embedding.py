@@ -7,6 +7,8 @@ import open_clip
 import faiss
 from usearch.index import Index as UsearchIndex
 
+from app.services.setencebert import SentenceBertEmbedding
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
 
@@ -136,8 +138,8 @@ class UsearchIndexStrategy(IndexStrategy):
         self.usearch_index.save(file_path)
         print(f"USearch index saved to {file_path}")
 
-    def load_index(self, file_path: str):
-        self.usearch_index = UsearchIndex(ndim=1024, metric="cosine")
+    def load_index(self, file_path: str, dimension: int = 1024):
+        self.usearch_index = UsearchIndex(ndim=dimension, metric="cosine")
         self.usearch_index.load(file_path)
         print(f"USearch index loaded from {file_path}")
 
@@ -190,6 +192,7 @@ class CLIPEmbedding:
         self.tokenizer = open_clip.get_tokenizer(model_name)
         self.faiss_strategy = FaissIndexStrategy()
         self.usearch_strategy = UsearchIndexStrategy()
+        self.audio_usearch_strategy = UsearchIndexStrategy()
         self.global_index2image_path = {}
 
     async def text_query(
@@ -239,17 +242,41 @@ class CLIPEmbedding:
     def get_image_paths(self, indices: List[int]) -> List[str]:
         return [self.global_index2image_path.get(i, "Unknown") for i in indices]
 
+        # Add an audio query function if needed
+
+    async def audio_query_by_text(
+        self,
+        text_query: str,
+        k: int = 20,
+        ranges: List[Tuple[int, int]] = None,
+    ) -> List[Tuple[int, float]]:
+        audio_embedding = SentenceBertEmbedding().embed(text_query)
+        audio_embedding = normalize(
+            audio_embedding.reshape(1, -1)
+        )  # Normalize embedding
+
+        if ranges:
+            return self.audio_usearch_strategy.search_in_ranges(
+                audio_embedding, ranges, k
+            )
+        else:
+            return self.audio_usearch_strategy.search(audio_embedding, k)
+
     def load_indexes(
         self,
         faiss_path: str = None,
         usearch_path: str = None,
         global2imgpath_path: str = None,
+        audio_usearch_path: str = None,
     ):
         if faiss_path:
             self.faiss_strategy.load_index(faiss_path)
 
         if usearch_path:
-            self.usearch_strategy.load_index(usearch_path)
+            self.usearch_strategy.load_index(usearch_path, dimension=1024)
+
+        if audio_usearch_path:
+            self.audio_usearch_strategy.load_index(audio_usearch_path, dimension=768)
 
         if global2imgpath_path:
             with open(global2imgpath_path, "r") as f:

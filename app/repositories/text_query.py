@@ -88,6 +88,16 @@ class TextQueryRepository(BaseRepository[Keyframe]):
             video_id=video_id,
             group_id=group_id,
         )
+    
+    async def get_keyframe_by_audio_indexes(self, audio_index: List[int]) -> List[Keyframe]:
+        """
+        Get record by audio index.
+
+        :param audio_index: audio index
+        :return: A keyframe.
+        """
+        cursor = self.collection.find({"audio_index": {"$in": audio_index}})
+        return await cursor.to_list(length=None)
 
     async def get_keyframe_by_indices(self, keys: List[int]) -> List[Keyframe]:
         """

@@ -26,6 +26,7 @@ class ReciporalRankFusionService:
         self,
         clip_keyframes: List[KeyframeWithConfidence],
         object_keyframes: List[KeyframeWithConfidence],
+        audio_keyframes: List[KeyframeWithConfidence],
     ) -> List[KeyframeWithConfidence]:
         def reciprocal_rank(score: float) -> float:
             return 1 / (self.k + (1 - score))
@@ -33,13 +34,16 @@ class ReciporalRankFusionService:
         # Create dictionaries for faster lookup
         clip_dict = {kf.key: kf.confidence for kf in clip_keyframes}
         object_dict = {kf.key: kf.confidence for kf in object_keyframes}
+        audio_dict = {kf.key: kf.confidence for kf in audio_keyframes}
 
         print(f"Clip results: {len(clip_dict)}")
         print(f"Object results: {len(object_dict)}")
+        print(f"Audio results: {len(audio_dict)}")
 
         # Normalize scores
         clip_scores_norm = self.normalize_scores(clip_dict)
         object_scores_norm = self.normalize_scores(object_dict)
+        audio_scores_norm = self.normalize_scores(audio_dict)
 
         # Calculate reciprocal ranks
         combined_weights = defaultdict(float)
@@ -47,15 +51,19 @@ class ReciporalRankFusionService:
             combined_weights[index] += reciprocal_rank(score)
         for index, score in object_scores_norm.items():
             combined_weights[index] += reciprocal_rank(score)
+        for index, score in audio_scores_norm.items():
+            combined_weights[index] += reciprocal_rank(score)
 
         # Sort combined weights
         sorted_indices = sorted(
             combined_weights, key=combined_weights.get, reverse=True
         )
         print(f"Combined results: {len(sorted_indices)}")
-
+        print('clip:', clip_keyframes)
+        print(f"audio: {audio_keyframes}")
+        keyframes = clip_keyframes + object_keyframes + audio_keyframes
         # Create a dictionary to map keyframe keys to KeyframeWithConfidence objects
-        all_keyframes = {kf.key: kf for kf in clip_keyframes + object_keyframes}
+        all_keyframes = {kf.key: kf for kf in keyframes}
 
         # Combine the results with corresponding KeyframeWithConfidence objects
         final_results = []

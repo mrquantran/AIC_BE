@@ -7,74 +7,67 @@ class ReciporalRankFusionService:
     def __init__(self, k: int = 60):
         self.k = k
 
-    def normalize_scores(self, scores: Dict[int, float]) -> Dict[int, float]:
-        if not scores:
-            return {}
-
-        min_score = min(scores.values())
-        max_score = max(scores.values())
-
-        if max_score == min_score:
-            return {index: 1.0 for index in scores}
-
-        return {
-            index: (score - min_score) / (max_score - min_score)
-            for index, score in scores.items()
-        }
-
     def reciprocal_rank_fusion(
         self,
         clip_keyframes: List[KeyframeWithConfidence],
         object_keyframes: List[KeyframeWithConfidence],
         audio_keyframes: List[KeyframeWithConfidence],
     ) -> List[KeyframeWithConfidence]:
-        def reciprocal_rank(score: float) -> float:
-            return 1 / (self.k + (1 - score))
 
-        # Create dictionaries for faster lookup
+        def reciprocal_rank(rank: int) -> float:
+            return 1 / (self.k + rank)
+
+        # Create dictionaries for faster lookup of confidence scores
         clip_dict = {kf.key: kf.confidence for kf in clip_keyframes}
         object_dict = {kf.key: kf.confidence for kf in object_keyframes}
         audio_dict = {kf.key: kf.confidence for kf in audio_keyframes}
 
-        print(f"Clip results: {len(clip_dict)}")
-        print(f"Object results: {len(object_dict)}")
-        print(f"Audio results: {len(audio_dict)}")
+        # Sort each keyframe list once and store ranks in dictionaries
+        def get_rank_dict(keyframes: List[KeyframeWithConfidence]) -> Dict[int, int]:
+            sorted_keyframes = sorted(
+                keyframes, key=lambda x: x.confidence, reverse=True
+            )
+            return {kf.key: rank + 1 for rank, kf in enumerate(sorted_keyframes)}
 
-        # Normalize scores
-        clip_scores_norm = self.normalize_scores(clip_dict)
-        object_scores_norm = self.normalize_scores(object_dict)
-        audio_scores_norm = self.normalize_scores(audio_dict)
+        clip_ranks = get_rank_dict(clip_keyframes)
+        object_ranks = get_rank_dict(object_keyframes)
+        audio_ranks = get_rank_dict(audio_keyframes)
 
-        # Calculate reciprocal ranks
-        combined_weights = defaultdict(float)
-        for index, score in clip_scores_norm.items():
-            combined_weights[index] += reciprocal_rank(score)
-        for index, score in object_scores_norm.items():
-            combined_weights[index] += reciprocal_rank(score)
-        for index, score in audio_scores_norm.items():
-            combined_weights[index] += reciprocal_rank(score)
-
-        # Sort combined weights
-        sorted_indices = sorted(
-            combined_weights, key=combined_weights.get, reverse=True
+        # Combine keys from all three lists
+        all_keys = (
+            set(clip_dict.keys()) | set(object_dict.keys()) | set(audio_dict.keys())
         )
-        print(f"Combined results: {len(sorted_indices)}")
-        print('clip:', clip_keyframes)
-        print(f"audio: {audio_keyframes}")
-        keyframes = clip_keyframes + object_keyframes + audio_keyframes
-        # Create a dictionary to map keyframe keys to KeyframeWithConfidence objects
-        all_keyframes = {kf.key: kf for kf in keyframes}
+
+        # Calculate reciprocal rank fusion scores
+        rrf_score = defaultdict(float)
+        for key in all_keys:
+            clip_rank = clip_ranks.get(key, len(clip_keyframes) + 1)
+            object_rank = object_ranks.get(key, len(object_keyframes) + 1)
+            audio_rank = audio_ranks.get(key, len(audio_keyframes) + 1)
+
+            # Sum the reciprocal ranks for each key
+            rrf_score[key] = (
+                reciprocal_rank(clip_rank)
+                + reciprocal_rank(object_rank)
+                + reciprocal_rank(audio_rank)
+            )
+
+        # Sort the keys by the computed reciprocal rank fusion score
+        sorted_indices = sorted(rrf_score.items(), key=lambda x: x[1], reverse=True)
 
         # Combine the results with corresponding KeyframeWithConfidence objects
+        keyframes = clip_keyframes + object_keyframes + audio_keyframes
+        all_keyframes = {kf.key: kf for kf in keyframes}
+
         final_results = []
-        for rank, idx in enumerate(sorted_indices, start=1):
+        for rank, (idx, _) in enumerate(sorted_indices, start=1):
             if idx in all_keyframes:
                 keyframe = all_keyframes[idx]
                 final_results.append(
                     KeyframeWithConfidence(
                         key=keyframe.key,
                         value=keyframe.value,
-                        confidence=rank,
+                        confidence=rank,  # Rank used as confidence
                         video_id=keyframe.video_id,
                         group_id=keyframe.group_id,
                     )

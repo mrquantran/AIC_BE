@@ -25,5 +25,3 @@ data/videos
 .DS_Store
 *.pt
 *.bin
-
-migration/ram/*.json

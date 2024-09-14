@@ -1,5 +1,9 @@
 import sys
 import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
+
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 import json
@@ -7,7 +11,6 @@ from typing import Dict, List, Union
 import asyncio
 
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.models.ocr import OCR
 from app.config.config import Settings
@@ -19,6 +22,8 @@ print(
     f"Connecting to mongodb at {settings.MONGO_HOST}:{settings.MONGO_PORT}/{settings.MONGO_DB}"
 )
 
+print(f"Using {settings.MONGO_USER} as username")
+print(f"Using {settings.MONGO_PASSWORD} as password")
 
 async def init_db():
     client = AsyncIOMotorClient(
@@ -37,13 +42,18 @@ def load_json_data(file_path: str) -> Dict[str, str]:
 
 
 def transform_data(data: Dict[str, str]) -> List[Dict[str, Union[int, str]]]:
-    return [OCR(key=int(key), value=value) for key, value in data.items()]
+    # split value to get group_id, video_id, frame_id
+
+    return [OCR(key=int(key), value=value,
+                video_id=int(value.split("/")[0]),
+                group_id=int(value.split("/")[1]),
+                frame_id=int(value.split("/")[2])
+            ) for key, value in data.items()]
+
+path = os.path.join(os.path.dirname(__file__), "./global_ocr_json_path.json")
 
 
-path = os.path.join(os.path.dirname(__file__), "./data/global_ocr_json_path.json")
-
-
-async def migrate(file_path: str = "./data/global_ocr_json_path.json"):
+async def migrate(file_path: str = "./global_ocr_json_path.json"):
     await init_db()
 
     data = load_json_data(file_path)

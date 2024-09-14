@@ -7,6 +7,7 @@ from app.repositories import TextQueryRepository
 from app.schemas.requests.query import SearchSettings, TemporalGroupQuery
 from app.schemas.responses.keyframes import KeyFrameInformation, KeyframeWithConfidence
 from app.config.embedding import embedder
+from app.services.ocr_query import OCRQueryService
 
 
 class TextQueryService(BaseController[Keyframe]):
@@ -81,25 +82,24 @@ class TextQueryService(BaseController[Keyframe]):
         settings: SearchSettings,
         audio_queries: List[str],
         range_queries: List[Tuple[int, int]],
+        ocr_queries: List[str],
     ) -> Tuple[List[Keyframe], List[Keyframe]]:
-        # Unpack object queries
-        # object_tags_query is a list of object tags
-        # object_indexes is a list of object indices existed queried in previous step
-        object_tags_query, object_indexes = object_queries
-        print(f"Object tags: {object_tags_query}")
-
         # from settings query params
         use_faiss = settings.vector_search == "faiss"
         kquery = settings.k_query
         audio_results = []
         text_results = []
 
+        # Unpack object queries
+        object_tags_query, object_indexes = object_queries
+        print(f"Object tags: {object_tags_query}")
+
         audio_queries = [
             embedder.audio_query_by_text(text_query=value, k=kquery)
             for value in audio_queries
         ]
         print(f"Audio queries: {audio_queries}")
-
+    
         if len(audio_queries) > 0:
             audio_results = await asyncio.gather(*audio_queries)
             print(f"Audio results: {audio_results}")

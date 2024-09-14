@@ -15,5 +15,8 @@ class OCRQueryRepository(BaseRepository[OCR]):
         :param keys: list of indices
         :return: A list of keyframes.
         """
+        print("keys", keys)
+        # conert key to int
+        keys = [int(key) for key in keys]
         cursor = self.collection.find({"key": {"$in": keys}})
         return await cursor.to_list(length=None)

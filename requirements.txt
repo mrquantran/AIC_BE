@@ -12,3 +12,5 @@ faiss-cpu
 usearch
 sentence_transformers
 pymongo
+rapidfuzz
+scikit-learn

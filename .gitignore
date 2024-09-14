@@ -12,6 +12,7 @@ fastapi/
 # Virtual environment
 venv/
 env/
+.venv/
 
 # multiple cluster testing
 notebooks/

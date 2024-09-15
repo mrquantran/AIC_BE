@@ -50,10 +50,10 @@ def transform_data(data: Dict[str, str]) -> List[Dict[str, Union[int, str]]]:
                 frame_id=int(value.split("/")[2])
             ) for key, value in data.items()]
 
-path = os.path.join(os.path.dirname(__file__), "./global_ocr_json_path.json")
+path = os.path.join(os.path.dirname(__file__), "./output.json")
 
 
-async def migrate(file_path: str = "./global_ocr_json_path.json"):
+async def migrate(file_path: str = "./output.json"):
     await init_db()
 
     data = load_json_data(file_path)

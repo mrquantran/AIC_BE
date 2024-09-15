@@ -11,6 +11,7 @@ model_nick_name = "CLIP_convnext_xxlarge_laion2B_s34B_b82K_augreg_soup"
 embedder = CLIPEmbedding(
     model_name=model_name,
     model_nick_name=model_nick_name,
+    device="cuda",
 )
 # embedder_ocr = CLIPEmbedding(
 #     model_name="hf-hub:apple/MobileCLIP-B-LT-OpenCLIP",

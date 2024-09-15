@@ -14,7 +14,7 @@ def migrate_json(input_file, output_file):
     # Regular expression to extract group, video, and frame number
     pattern = r"/L(\d+)/kaggle/working/L\d+/V(\d+)/(\d+)\.webp"
 
-    for key, value in data["global_index2image"].items():
+    for key, value in data.items():
         # Extract group, video, and frame number using regex
         match = re.search(pattern, value)
         if match:
@@ -36,7 +36,7 @@ def migrate_json(input_file, output_file):
 
 
 # Example usage
-input_file = os.path.join(os.path.dirname(__file__), "./checkpoint.json")
+input_file = os.path.join(os.path.dirname(__file__), "./total_ocr.json")
 
 output_file = "output.json"
 

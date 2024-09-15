@@ -95,9 +95,7 @@ class OCRQueryService(BaseController[OCR]):
         vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(2,5))
         tfidf_matrix = vectorizer.fit_transform(normalized_text_list)
         query_vector = vectorizer.transform([normalized_query])
-
         print(tfidf_matrix.shape, query_vector.shape)
-
 
         cosine_similarities = tfidf_matrix.dot(query_vector.T).toarray().ravel()
 

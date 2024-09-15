@@ -4,11 +4,11 @@ aiofiles
 pydantic
 beanie
 numpy<=2.0.0
-torch
-torchvision
+# torch
+# torchvision
 open_clip_torch
 # faiss-gpu
-faiss-cpu
+# faiss-cpu
 usearch
 sentence_transformers
 pymongo

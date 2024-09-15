@@ -26,3 +26,4 @@ data/videos
 *.pt
 *.bin
 inference_results_numbered.json
+.conda

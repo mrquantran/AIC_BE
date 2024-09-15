@@ -36,6 +36,7 @@ class ModelFactory:
     def create_model(model_name: str, device: str):
         try:
             print(f"Attempting to load model on {device}")
+            # create model in the specific directory
             model, _, preprocess = open_clip.create_model_and_transforms(model_name)
             return model.to(device), preprocess
         except RuntimeError as e:
@@ -176,6 +177,8 @@ class UsearchIndexStrategy(IndexStrategy):
 class CLIPEmbedding:
     def __init__(self, model_name: str, model_nick_name: str, device: str = None):
         self.model_nick_name = model_nick_name
+        print(f"Initializing CLIPEmbedding for {model_nick_name}")
+        print(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
         self.device = (
             device
             if device is not None

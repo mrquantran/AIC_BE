@@ -25,3 +25,4 @@ data/videos
 .DS_Store
 *.pt
 *.bin
+inference_results_numbered.json

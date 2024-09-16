@@ -25,6 +25,12 @@ class GetNearestIndexRequest(BaseModel):
     video_id: int
     keyframe_id: int
 
+class GetRangeIndexRequest(BaseModel):
+    start: int
+    end: int
+    video_id: int
+    group_id: int
+
 class SearchSettings(BaseModel):
     vector_search: str = Field(default="faiss")
     k_query: int = Field(default=20)

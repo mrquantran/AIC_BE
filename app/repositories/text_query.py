@@ -9,6 +9,27 @@ class TextQueryRepository(BaseRepository[Keyframe]):
     Query repository provides all the database operations for the Query model.
     """
 
+    async def get_keyframes_by_range(
+        self, video_id: int, group_id: int, frame_start: int, frame_end: int
+    ) -> List[Keyframe]:
+        """
+        Get keyframes by range.
+
+        :param video_id: video id
+        :param group_id: group id
+        :param frame_start: start frame
+        :param frame_end: end frame
+        :return: A list of keyframes.
+        """
+        cursor = self.collection.find(
+            {
+                "video_id": video_id,
+                "group_id": group_id,
+                "frame_id": {"$gte": frame_start, "$lte": frame_end},
+            }
+        )
+        return await cursor.to_list(length=None)
+
     async def get_max_min_keyframe_by_video_and_group(
         self, groups: List[int], videos: List[int]
     ) -> List[Dict[str, Any]]:
@@ -72,9 +93,7 @@ class TextQueryRepository(BaseRepository[Keyframe]):
                     "value": 1,
                 }
             },
-            {
-                "$sort": {"frame_id": 1}
-            }   
+            {"$sort": {"frame_id": 1}},
         ]
 
         cursor = self.collection.aggregate(pipeline)
@@ -88,8 +107,10 @@ class TextQueryRepository(BaseRepository[Keyframe]):
             video_id=video_id,
             group_id=group_id,
         )
-    
-    async def get_keyframe_by_audio_indexes(self, audio_index: List[int]) -> List[Keyframe]:
+
+    async def get_keyframe_by_audio_indexes(
+        self, audio_index: List[int]
+    ) -> List[Keyframe]:
         """
         Get record by audio index.
 

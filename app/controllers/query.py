@@ -23,15 +23,16 @@ class QueryController:
         self.object_query_service = object_query_service
         self.ocr_query_service = ocr_query_service
 
-    async def get_nearest_index(
-        self, group_id: int, video_id: int, keyframe_id: int
-    ):
+    async def get_nearest_index(self, group_id: int, video_id: int, keyframe_id: int):
         return self.text_query_serivce.get_nearest_index(
             group_id=group_id, video_id=video_id, keyframe=keyframe_id
         )
 
     async def search_keyframes(
-        self, body: List[SearchBodyRequest], settings: SearchSettings
+        self,
+        body: List[SearchBodyRequest],
+        settings: SearchSettings,
+        filter_indexes: List[int] = None,
     ):
         text_queries = []
         audio_queries = []
@@ -53,7 +54,7 @@ class QueryController:
 
         groups_videos_queries: List[TemporalGroupQuery] = []
         keyframe_by_group_video = []
-       
+
         # temporal search implement
         if len(temporal_queries) > 0:
             groups_videos_queries = temporal_queries[0]
@@ -66,7 +67,7 @@ class QueryController:
 
         # filter the text queries
         clip_query = list(text_queries)
-        
+
         object_tags = list(chain.from_iterable(object_tags))
         object_query_index = []
 
@@ -91,23 +92,27 @@ class QueryController:
                 audio_queries=audio_queries,
                 settings=settings,
                 range_queries=keyframe_by_group_video,
-                ocr_queries = ocr_queries
+                filter_indexes=filter_indexes,
             )
         )
 
-        ocr_results = []        
+        ocr_results = []
         ocr_search = [
-            self.ocr_query_service.fuzzy_search(query, top_k=settings.k_query, threshold=0.5)  
-            for query in ocr_queries 
+            self.ocr_query_service.fuzzy_search(
+                query, top_k=settings.k_query, threshold=0.5
+            )
+            for query in ocr_queries
         ]
         print(f"ocr_search: {ocr_search}")
         ocr_keyframes = []
-        
+
         if len(ocr_search) > 0:
             ocr_results = ocr_search[0]
-        
+
         if len(ocr_results) > 0:
-            ocr_keyframes = await self.ocr_query_service.search_keyframes_by_ocr(ocr_results)
+            ocr_keyframes = await self.ocr_query_service.search_keyframes_by_ocr(
+                ocr_results
+            )
 
         print(f"ocrkf: {ocr_keyframes}")
         print(f"Audiokf: {audio_keyframes}")

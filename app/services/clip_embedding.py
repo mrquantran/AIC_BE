@@ -1,6 +1,6 @@
 import os
 import json
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 import numpy as np
 import torch
 import open_clip
@@ -81,7 +81,15 @@ class FaissIndexStrategy(IndexStrategy):
         self.faiss_index = faiss.read_index(file_path)
         print(f"FAISS index loaded from {file_path}")
 
-    def search(self, query_embedding: np.ndarray, k: int) -> List[Tuple[int, float]]:
+    def search(
+        self,
+        query_embedding: np.ndarray,
+        k: int,
+        exclude_ids: Optional[List[int]] = None,
+    ) -> List[Tuple[int, float]]:
+        if self.faiss_index is None:
+            raise ValueError("FAISS index not loaded. Call load_index() first.")
+
         # Ensure query_embedding is 2D and has the correct shape
         if query_embedding.ndim == 1:
             query_embedding = query_embedding.reshape(1, -1)
@@ -92,8 +100,61 @@ class FaissIndexStrategy(IndexStrategy):
             )
 
         faiss.normalize_L2(query_embedding)
-        distances, indices = self.faiss_index.search(query_embedding, k)
+
+        # Set up search parameters
+        params = faiss.SearchParametersIVF()
+        params.nprobe = min(self.faiss_index.nlist, 256)  # Adjust nprobe as needed
+
+        # Set up IDSelector if exclude_ids is provided
+        if exclude_ids:
+            excluded_ids = np.array(exclude_ids, dtype="int64")
+            selector = faiss.IDSelectorNot(
+                faiss.IDSelectorBatch(len(excluded_ids), faiss.swig_ptr(excluded_ids))
+            )
+            params.sel = selector
+
+        # Perform search
+        distances, indices = self.faiss_index.search(query_embedding, k, params=params)
+
         return list(zip(indices[0], distances[0]))
+
+    # def search(
+    #     self,
+    #     query_embedding: np.ndarray,
+    #     k: int,
+    #     exclude_ids: Optional[List[int]] = None,
+    # ) -> List[Tuple[int, float]]:
+    #     if self.faiss_index is None:
+    #         raise ValueError("FAISS index not loaded. Call load_index() first.")
+
+    #     # Ensure query_embedding is 2D and has the correct shape
+    #     if query_embedding.ndim == 1:
+    #         query_embedding = query_embedding.reshape(1, -1)
+
+    #     if query_embedding.shape[1] != self.faiss_index.d:
+    #         raise ValueError(
+    #             f"Query embedding dimension {query_embedding.shape[1]} does not match index dimension {self.faiss_index.d}"
+    #         )
+
+    #     faiss.normalize_L2(query_embedding)
+
+    #     # Perform initial search with more results than needed
+    #     extra_k = k + len(exclude_ids) if exclude_ids else k
+    #     distances, indices = self.faiss_index.search(query_embedding, extra_k)
+
+    #     # Filter out excluded IDs
+    #     if exclude_ids:
+    #         exclude_set = set(exclude_ids)
+    #         filtered_results = [
+    #             (idx, dist)
+    #             for idx, dist in zip(indices[0], distances[0])
+    #             if idx not in exclude_set
+    #         ]
+    #         results = filtered_results[:k]  # Keep only the top k after filtering
+    #     else:
+    #         results = list(zip(indices[0], distances[0]))
+
+    #     return results[:k]  # Ensure we return exactly k results
 
     # ranges is the list of tuples (min, max) for each range (for index)
     # e.g. [(0, 100), (200, 300)]
@@ -178,12 +239,12 @@ class CLIPEmbedding:
     def __init__(self, model_name: str, model_nick_name: str, device: str = None):
         self.model_nick_name = model_nick_name
         print(f"Initializing CLIPEmbedding for {model_nick_name}")
-        print(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
         self.device = (
             device
-            if device is not None
-            else ("cuda" if torch.cuda.is_available() else "cpu")
+            if device is not None and torch.cuda.is_available() and device == "cuda"
+            else "cpu"
         )
+        print(f"Using device: {self.device}")
         self.model, self.preprocess = ModelFactory.create_model(model_name, self.device)
         self.model.eval()
         self.tokenizer = open_clip.get_tokenizer(model_name)
@@ -198,6 +259,7 @@ class CLIPEmbedding:
         k: int = 20,
         use_faiss: bool = True,
         ranges: List[Tuple[int, int]] = None,
+        filter_indexes: List[int] = None,
     ) -> List[Tuple[int, float]]:
         with torch.no_grad():
             text_tokens = self.tokenizer([query]).to(self.device)
@@ -227,7 +289,7 @@ class CLIPEmbedding:
             if len(ranges) > 0:
                 return self.faiss_strategy.search_in_ranges(query_embedding, ranges, k)
             else:
-                return self.faiss_strategy.search(query_embedding, k)
+                return self.faiss_strategy.search(query_embedding, k, filter_indexes)
         else:
             if len(ranges) > 0:
                 return self.usearch_strategy.search_in_ranges(

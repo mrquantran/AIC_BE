@@ -4,7 +4,11 @@ from app.common.controller import BaseController
 from app.common.enum import QueryType
 from app.models import Keyframe
 from app.repositories import TextQueryRepository
-from app.schemas.requests.query import SearchSettings, TemporalGroupQuery
+from app.schemas.requests.query import (
+    GetRangeIndexRequest,
+    SearchSettings,
+    TemporalGroupQuery,
+)
 from app.schemas.responses.keyframes import KeyFrameInformation, KeyframeWithConfidence
 from app.config.embedding import embedder
 from app.services.ocr_query import OCRQueryService
@@ -15,6 +19,35 @@ class TextQueryService(BaseController[Keyframe]):
     def __init__(self, query_repository: TextQueryRepository):
         super().__init__(model=Keyframe, repository=query_repository)
         self.query_repository = query_repository
+
+    async def get_keyframes_by_ranges(
+        self, requests: List[GetRangeIndexRequest]
+    ) -> List[KeyframeWithConfidence]:
+        keyframes_by_ranges_query = [
+            self.query_repository.get_keyframes_by_range(
+                video_id=request.video_id,
+                group_id=request.group_id,
+                frame_start=request.start,
+                frame_end=request.end,
+            )
+            for request in requests
+        ]
+
+        keyframes_by_ranges = await asyncio.gather(*keyframes_by_ranges_query)
+
+        results = [
+            KeyframeWithConfidence(
+                key=keyframe.key,
+                value=keyframe.value,
+                confidence=1,
+                video_id=keyframe.video_id,
+                group_id=keyframe.group_id,
+            )
+            for keyframes in keyframes_by_ranges
+            for keyframe in keyframes
+        ]
+
+        return results
 
     async def get_nearest_index(
         self, group_id: int, video_id: int, keyframe_id: int
@@ -82,7 +115,7 @@ class TextQueryService(BaseController[Keyframe]):
         settings: SearchSettings,
         audio_queries: List[str],
         range_queries: List[Tuple[int, int]],
-        ocr_queries: List[str],
+        filter_indexes: List[int],
     ) -> Tuple[List[Keyframe], List[Keyframe]]:
         # from settings query params
         use_faiss = settings.vector_search == "faiss"
@@ -99,14 +132,14 @@ class TextQueryService(BaseController[Keyframe]):
             for value in audio_queries
         ]
         print(f"Audio queries: {audio_queries}")
-    
+
         if len(audio_queries) > 0:
             audio_results = await asyncio.gather(*audio_queries)
             print(f"Audio results: {audio_results}")
 
         text_queries = [
             embedder.text_query(
-                value, k=kquery, use_faiss=use_faiss, ranges=range_queries
+                value, k=kquery, use_faiss=use_faiss, ranges=range_queries, filter_indexes=filter_indexes
             )
             for value in text_queries
         ]
@@ -115,7 +148,9 @@ class TextQueryService(BaseController[Keyframe]):
             print(f"Text results: {text_results}")
 
         flattened_results_audio = {
-            int(idx): score for query_result in audio_results for idx, score in query_result
+            int(idx): score
+            for query_result in audio_results
+            for idx, score in query_result
         }
 
         # Flatten results and remove duplicates

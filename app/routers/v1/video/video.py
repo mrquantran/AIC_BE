@@ -24,7 +24,6 @@ async def ranged(
                 break
             yield chunk
 
-
 @video_router.get("/{group_id}/{video_id}")
 # @cache(expire=3600)  # Cache for 1 hour
 async def get_video(group_id: str, video_id: str, request: Request):

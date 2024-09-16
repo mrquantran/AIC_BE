@@ -1,7 +1,7 @@
 from typing import List
 from app.common.factory import Factory
 from app.controllers.object import ObjectController
-from app.schemas.requests.query import GetNearestIndexRequest
+from app.schemas.requests.query import GetNearestIndexRequest, GetRangeIndexRequest
 from app.schemas.responses.keyframes import KeyFrameInformation, KeyframeWithConfidence
 from fastapi import APIRouter, Body, Depends, Query
 from app.schemas.extras import Response
@@ -47,6 +47,9 @@ async def search(
     vector_search: str = Query(example="faiss", description="Description for param1"),
     k_query: int = Query(5, description="kquery vector search"),
     display: int = Query(5, description="display vector search"),
+    filter_indexes: List[int] = Query(
+        None, description="List of indexes to filter the search"
+    ),
 ):
     settings = SearchSettings(
         vector_search=vector_search, k_query=k_query, display=display
@@ -56,8 +59,22 @@ async def search(
         text_query_service, object_query_service, ocr_query_service
     )
 
-    query = await query_controller.search_keyframes(request_body, settings)
+    query = await query_controller.search_keyframes(request_body, settings, filter_indexes)
 
+    return Response[List[KeyframeWithConfidence]](data=query)
+
+
+@query_router.post(
+    "/index/range",
+    response_model=Response[List[KeyframeWithConfidence]],
+    status_code=200,
+    description="Get Index By Keyframe Information",
+)
+async def query_keyframe_by_range(
+    request_body: List[GetRangeIndexRequest] = Body(),
+    query_service: TextQueryService = Depends(Factory().get_text_query_service),
+) -> Response[List[KeyframeWithConfidence]]:
+    query = await query_service.get_keyframes_by_ranges(request_body)
     return Response[List[KeyframeWithConfidence]](data=query)
 
 

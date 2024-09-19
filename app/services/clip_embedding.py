@@ -64,28 +64,47 @@ class IndexStrategy:
         raise NotImplementedError
 
 
-class FaissIndexStrategy(IndexStrategy):
+class FaissIndexStrategy:
 
-    def __init__(self, refinement_k: int = 50):
+    def __init__(self, refinement_k: int = 50, p: float = 3.0, beta: float = 0.15):
         self.faiss_index = None
         self.refinement_k = refinement_k
+        self.p = p
+        self.beta = beta
 
     def load_index(self, file_path: str):
         self.faiss_index = faiss.read_index(file_path)
+        self.faiss_index.make_direct_map()
         print(f"FAISS index loaded from {file_path}")
 
-    def gem_pooling(self, embeddings: np.ndarray, p: float = 3.0) -> np.ndarray:
-        """Generalized Mean Pooling"""
-        return np.power(np.mean(np.power(np.abs(embeddings), p), axis=0), 1 / p)
+    def gem_plus_pooling(self, embeddings: np.ndarray) -> np.ndarray:
+        """
+        Implements GeM+ pooling as described in the SuperGlobal paper.
+        This is a placeholder implementation and should be fine-tuned based on your specific needs.
+        """
+        p_values = np.linspace(1, 6, num=10)  # Example range of p values
+        pooled_embeddings = []
+        for p in p_values:
+            pooled = np.power(np.mean(np.power(np.abs(embeddings), p), axis=0), 1 / p)
+            pooled_embeddings.append(pooled)
+        return np.mean(pooled_embeddings, axis=0)
 
-    def refine_query(
-        self, query_embedding: np.ndarray, top_k_distances: np.ndarray
+    def refine_features(
+        self, query_embedding: np.ndarray, top_k_embeddings: np.ndarray
     ) -> np.ndarray:
-        """Refine query embedding using GeM pooling simulation"""
-        # Simulate GeM pooling effect using distances
-        weights = np.exp(-top_k_distances / np.mean(top_k_distances))
-        refined_query = query_embedding * (1 + np.sum(weights) / len(weights))
-        return refined_query.reshape(1, -1)
+        """
+        Refines both query and database features as per the SuperGlobal paper.
+        """
+        # Weighted average pooling for database images
+        weights = np.exp(-np.linalg.norm(top_k_embeddings - query_embedding, axis=1))
+        refined_db = np.sum(weights[:, np.newaxis] * top_k_embeddings, axis=0) / np.sum(
+            weights
+        )
+
+        # Max pooling for refined query (p → ∞ in GeM)
+        refined_query = np.max(np.stack([query_embedding, refined_db]), axis=0)
+
+        return refined_query
 
     def search(
         self,
@@ -96,22 +115,12 @@ class FaissIndexStrategy(IndexStrategy):
         if self.faiss_index is None:
             raise ValueError("FAISS index not loaded. Call load_index() first.")
 
-        # Ensure query_embedding is 2D and has the correct shape
-        if query_embedding.ndim == 1:
-            query_embedding = query_embedding.reshape(1, -1)
-
-        if query_embedding.shape[1] != self.faiss_index.d:
-            raise ValueError(
-                f"Query embedding dimension {query_embedding.shape[1]} does not match index dimension {self.faiss_index.d}"
-            )
-
+        query_embedding = query_embedding.reshape(1, -1)
         faiss.normalize_L2(query_embedding)
 
-        # Set up search parameters
         params = faiss.SearchParametersIVF()
-        params.nprobe = min(self.faiss_index.nlist, 256)  # Adjust nprobe as needed
+        params.nprobe = min(self.faiss_index.nlist, 256)
 
-        # Set up IDSelector if exclude_ids is provided
         if exclude_ids:
             excluded_ids = np.array(exclude_ids, dtype="int64")
             selector = faiss.IDSelectorNot(
@@ -119,18 +128,22 @@ class FaissIndexStrategy(IndexStrategy):
             )
             params.sel = selector
 
-        # Perform initial search
+        # Initial search
         initial_k = max(k, self.refinement_k)
         initial_distances, initial_indices = self.faiss_index.search(
             query_embedding, initial_k, params=params
         )
 
-        # Refine query embedding
-        refined_query = self.refine_query(
-            query_embedding, initial_distances[0][: self.refinement_k]
+        # Feature refinement
+        top_k_indices = initial_indices[0][: self.refinement_k].astype(np.int64)
+        top_k_embeddings = self.faiss_index.reconstruct_n(
+            int(top_k_indices[0]), self.refinement_k
         )
+        refined_query = self.refine_features(query_embedding[0], top_k_embeddings)
 
-        # Perform final search with refined query
+        # Second search with refined query
+        refined_query = refined_query.reshape(1, -1)
+        faiss.normalize_L2(refined_query)
         final_distances, final_indices = self.faiss_index.search(
             refined_query, k, params=params
         )
@@ -138,51 +151,11 @@ class FaissIndexStrategy(IndexStrategy):
         # Combine and deduplicate results
         all_indices = np.concatenate([initial_indices[0], final_indices[0]])
         all_distances = np.concatenate([initial_distances[0], final_distances[0]])
-
-        # Remove duplicates and sort by distance
         unique_indices, unique_idx = np.unique(all_indices, return_index=True)
         unique_distances = all_distances[unique_idx]
         sorted_idx = np.argsort(unique_distances)[:k]
 
         return list(zip(unique_indices[sorted_idx], unique_distances[sorted_idx]))
-
-    # def search(
-    #     self,
-    #     query_embedding: np.ndarray,
-    #     k: int,
-    #     exclude_ids: Optional[List[int]] = None,
-    # ) -> List[Tuple[int, float]]:
-    #     if self.faiss_index is None:
-    #         raise ValueError("FAISS index not loaded. Call load_index() first.")
-
-    #     # Ensure query_embedding is 2D and has the correct shape
-    #     if query_embedding.ndim == 1:
-    #         query_embedding = query_embedding.reshape(1, -1)
-
-    #     if query_embedding.shape[1] != self.faiss_index.d:
-    #         raise ValueError(
-    #             f"Query embedding dimension {query_embedding.shape[1]} does not match index dimension {self.faiss_index.d}"
-    #         )
-
-    #     faiss.normalize_L2(query_embedding)
-
-    #     # Perform initial search with more results than needed
-    #     extra_k = k + len(exclude_ids) if exclude_ids else k
-    #     distances, indices = self.faiss_index.search(query_embedding, extra_k)
-
-    #     # Filter out excluded IDs
-    #     if exclude_ids:
-    #         exclude_set = set(exclude_ids)
-    #         filtered_results = [
-    #             (idx, dist)
-    #             for idx, dist in zip(indices[0], distances[0])
-    #             if idx not in exclude_set
-    #         ]
-    #         results = filtered_results[:k]  # Keep only the top k after filtering
-    #     else:
-    #         results = list(zip(indices[0], distances[0]))
-
-    #     return results[:k]  # Ensure we return exactly k results
 
     # ranges is the list of tuples (min, max) for each range (for index)
     # e.g. [(0, 100), (200, 300)]

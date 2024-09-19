@@ -65,21 +65,27 @@ class IndexStrategy:
 
 
 class FaissIndexStrategy(IndexStrategy):
-    def __init__(self):
+
+    def __init__(self, refinement_k: int = 50):
         self.faiss_index = None
-
-    def build_index(self, embeddings: np.ndarray):
-        dimension = embeddings.shape[1]
-        self.faiss_index = faiss.IndexFlatIP(dimension)
-        self.faiss_index.add(embeddings)
-
-    def save_index(self, file_path: str):
-        faiss.write_index(self.faiss_index, file_path)
-        print(f"FAISS index saved to {file_path}")
+        self.refinement_k = refinement_k
 
     def load_index(self, file_path: str):
         self.faiss_index = faiss.read_index(file_path)
         print(f"FAISS index loaded from {file_path}")
+
+    def gem_pooling(self, embeddings: np.ndarray, p: float = 3.0) -> np.ndarray:
+        """Generalized Mean Pooling"""
+        return np.power(np.mean(np.power(np.abs(embeddings), p), axis=0), 1 / p)
+
+    def refine_query(
+        self, query_embedding: np.ndarray, top_k_distances: np.ndarray
+    ) -> np.ndarray:
+        """Refine query embedding using GeM pooling simulation"""
+        # Simulate GeM pooling effect using distances
+        weights = np.exp(-top_k_distances / np.mean(top_k_distances))
+        refined_query = query_embedding * (1 + np.sum(weights) / len(weights))
+        return refined_query.reshape(1, -1)
 
     def search(
         self,
@@ -113,10 +119,32 @@ class FaissIndexStrategy(IndexStrategy):
             )
             params.sel = selector
 
-        # Perform search
-        distances, indices = self.faiss_index.search(query_embedding, k, params=params)
+        # Perform initial search
+        initial_k = max(k, self.refinement_k)
+        initial_distances, initial_indices = self.faiss_index.search(
+            query_embedding, initial_k, params=params
+        )
 
-        return list(zip(indices[0], distances[0]))
+        # Refine query embedding
+        refined_query = self.refine_query(
+            query_embedding, initial_distances[0][: self.refinement_k]
+        )
+
+        # Perform final search with refined query
+        final_distances, final_indices = self.faiss_index.search(
+            refined_query, k, params=params
+        )
+
+        # Combine and deduplicate results
+        all_indices = np.concatenate([initial_indices[0], final_indices[0]])
+        all_distances = np.concatenate([initial_distances[0], final_distances[0]])
+
+        # Remove duplicates and sort by distance
+        unique_indices, unique_idx = np.unique(all_indices, return_index=True)
+        unique_distances = all_distances[unique_idx]
+        sorted_idx = np.argsort(unique_distances)[:k]
+
+        return list(zip(unique_indices[sorted_idx], unique_distances[sorted_idx]))
 
     # def search(
     #     self,

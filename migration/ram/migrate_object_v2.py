@@ -87,7 +87,9 @@ async def migrate_tag_object_probability(filename: str):
         keyframe = await Keyframe.find_one(Keyframe.key == keyframe_index)
 
         if not keyframe:
-            raise ValueError(f"Keyframe with index {keyframe_index} does not exist.")
+            # raise ValueError(f"Keyframe with index {keyframe_index} does not exist.")
+            print(f"Keyframe with index {keyframe_index} does not exist.")
+            continue 
 
         # Cập nhật tags vào keyframe
         keyframe.tags.update({tag: prob for tag, prob in info["tag_prob"]})
@@ -96,9 +98,9 @@ async def migrate_tag_object_probability(filename: str):
 
 async def main():
     input_file = os.path.join(
-        os.path.dirname(__file__), "inference_results_numbered.json"
+        os.path.dirname(__file__), "merged_inference_results_numbered_output.json"
     )
-    object_files = os.path.join(os.path.dirname(__file__), "tags_to_images.json")
+    object_files = os.path.join(os.path.dirname(__file__), "tag_to_indices.json")
     await init_db()
 
     # Di chuyển dữ liệu đã chuyển đổi vào bảng Object

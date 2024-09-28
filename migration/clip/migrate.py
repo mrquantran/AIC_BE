@@ -58,10 +58,10 @@ def transform_data(data: Dict[str, str]) -> List[Keyframe]:
     return keyframes
 
 
-path = os.path.join(os.path.dirname(__file__), 'global2imgpath.json')
+path = os.path.join(os.path.dirname(__file__), "merged_json.json")
 
 
-async def migrate(file_path: str = 'global2imgpath.json'):
+async def migrate(file_path: str = "merged_json.json"):
     await init_db()
 
     data = load_json_data(file_path)
@@ -78,6 +78,7 @@ async def migrate(file_path: str = 'global2imgpath.json'):
 
     else:
         print("No data to insert")
+
 
 if __name__ == '__main__':
     asyncio.run(migrate(path))

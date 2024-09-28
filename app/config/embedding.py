@@ -18,7 +18,7 @@ embedder = CLIPEmbedding(
 #     model_nick_name="mobile_clip_B_LT_openCLIP",
 # )
 
-model_faiss = 'faissIVFFlat.bin'
+model_faiss = "faiss_merged.bin"
 
 # Load the indexes (adjust paths as necessary)
 faiss_path = os.path.join(
@@ -27,7 +27,7 @@ faiss_path = os.path.join(
 )
 usearch_path = os.path.join(
     os.path.dirname(__file__),
-    "../../data/embedding/usearch.bin",
+    "../../data/embedding/usearch_batch2.bin",
 )
 audio_usearch_path = os.path.join(
     os.path.dirname(__file__),
@@ -41,16 +41,16 @@ audio_usearch_path = os.path.join(
 # )
 # Assuming you have a similar file for USearch
 global2imgpath_path = os.path.join(
-    os.path.dirname(__file__), "../../data/embedding/global2imgpath.json"
+    os.path.dirname(__file__), "../../data/embedding/merged_json.json"
 )
 # global2imgpath_path_ocr = os.path.join(
 #     os.path.dirname(__file__), "../../data/embedding/ocr/global_json_path.json"
 # )
 embedder.load_indexes(
     faiss_path=faiss_path,
-    usearch_path=usearch_path,
+    usearch_path=None,
     global2imgpath_path=global2imgpath_path,
-    audio_usearch_path=audio_usearch_path,
+    audio_usearch_path=None,
 )
 # embedder_ocr.load_indexes(
 #     faiss_path=faiss_ocr_path,

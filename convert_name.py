@@ -36,8 +36,8 @@ def migrate_json(input_file, output_file):
 
 
 # Example usage
-input_file = os.path.join(os.path.dirname(__file__), "./total_ocr.json")
+input_file = os.path.join(os.path.dirname(__file__), "./global2imgpath_batch2.json")
 
-output_file = "output.json"
+output_file = "output_batch2.json"
 
 migrate_json(input_file, output_file)
